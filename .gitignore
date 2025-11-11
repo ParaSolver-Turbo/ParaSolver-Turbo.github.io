@@ -1,0 +1,14 @@
+# Hugo / Node workspace
+node_modules/
+public/
+resources/_gen/
+
+# OS / tooling
+.DS_Store
+Thumbs.db
+
+# Python helpers
+tmp_*.py
+
+# Hugo caches
+.hugo_build.lock

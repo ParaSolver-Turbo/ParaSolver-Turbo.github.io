@@ -1,0 +1,1887 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+% \input{math_commands.tex}
+
+% \usepackage{hyperref}
+
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+%\usepackage{hyperref}       % hyperlinks
+ \usepackage[colorlinks=true, citecolor=blue]{hyperref}
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\definecolor{commentcolor}{RGB}{47, 157, 215
+} % RGB 值（0-255）
+
+%ADDED NEW PACKAGE
+\usepackage{amsfonts}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{etoc}
+\usepackage{enumitem}
+\usepackage[ruled,vlined]{algorithm2e}  % 核心算法环境
+\usepackage{bm}                         % 粗体数学符号
+
+\usepackage{hyperref}                   % 交叉引用
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily, % 等宽字体
+    keywordstyle=\color{blue}, % 可选：关键词高亮
+    stringstyle=\color{red},   % 可选：字符串高亮
+}
+
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Hcal}{\mathcal{H}}
+\newcommand{\Fcal}{\mathcal{F}}
+\newcommand{\norm}[1]{\left\| #1 \right\|_F}
+
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabu}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{colortbl}
+\usepackage{xcolor}
+\usepackage{calc}
+\usepackage{wrapfig}
+\usepackage{subfigure}
+\newcommand{\progressbar}[2][0.7cm]{%
+    % \newlength{\progressbarwidth}
+    % \setlength{\progressbarwidth}{#1 * \real{#2} / 128}%
+    \textcolor{color1}{\rule{#1 * \real{#2} / 128}{1.5ex}}%
+    \textcolor{color2!15}{\rule{#1 - #1 * \real{#2} / 128}{1.5ex}}}
+% \newcommand{\arrowprogressbar}[2][1.2cm]{%
+%     \begin{tikzpicture}
+%         % Draw the background of the progress bar
+%         \fill[color1] (0,0) rectangle (#1,1.5ex);
+%         % Draw the filled part of the progress bar
+%         \fill[color2!15] (0,0) rectangle (#1 * \real{#2} / 100,1.5ex);
+%         % Draw the arrow pointing to the end of the progress bar
+%         \draw[->, thick] (#1 * \real{#2} / 100, 0.75ex) -- ++(0.5cm,0);
+%     \end{tikzpicture}%
+% }
+
+
+
+\title{PASO: Step Parallel Stochastic Optimization}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Antiquus S.~Hippocampus, Natalia Cerebro \& Amelie P. Amygdale \thanks{ Use footnote for providing further information
+about author (webpage, alternative address)---\emph{not} for acknowledging
+funding agencies.  Funding acknowledgements go at the end of the paper.} \\
+Department of Computer Science\\
+Cranberry-Lemon University\\
+Pittsburgh, PA 15213, USA \\
+\texttt{\{hippo,brain,jen\}@cs.cranberry-lemon.edu} \\
+\And
+Ji Q. Ren \& Yevgeny LeNet \\
+Department of Computational Neuroscience \\
+University of the Witwatersrand \\
+Joburg, South Africa \\
+\texttt{\{robot,net\}@wits.ac.za} \\
+\AND
+Coauthor \\
+Affiliation \\
+Address \\
+\texttt{email}
+}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+%\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+\etocdepthtag.toc{mtchapter}
+\etocsettagdepth{mtchapter}{subsection}
+\etocsettagdepth{mtappendix}{none}
+
+\maketitle
+
+
+\begin{abstract}
+  This paper approaches the fundamental challenge of accelerating the inherently autoregressive nature of gradient descent (GD) like SGD and Adam through a dynamic system perspective.
+Specifically, we introduce a unified framework that recasts the autoregressive GD process as solving a system of triangular nonlinear equations (TNEs), thereby facilitating a paradigm shift toward non-autoregressive GD featuring parallel gradient computation across iteration steps. Within this generic framework, we establish that: (1) the TNE system admits a unique solution corresponding precisely to the autoregressive  GD iterative trajectory; (2) solving the TNEs system  guarantees convergence to the GD iterative trajectory in equal or far fewer iterations.
+Building on these insights, we present \textit{PASO}, a step parallel optimizer for accelerating a broad class of autoregressive GD optimizers like SGD and Adam.
+Extensive experiments (\textit{e.g.}, Llama-3.2-1B) validate that PASO achieves up to \textbf{91}$\times$ reduction in GD steps and \textbf{7.5}$\times$ speedup in wall-clock time, with no measurable model quality loss. The source code will be released publicly.
+\end{abstract}
+
+
+\section{Introduction}
+Stochastic gradient descent (SGD)~\citep{SGD} and its variants~\citep{adam,adagrad,rmsprop,AdamW,muon,NAG,optimer1,optimizer2}, continue to be fundamental optimization engines for training deep neural networks. These methods underpin breakthroughs across domains~\citep{transformer,resnet,mypaper1,mypaper2,mypaper3}, exemplified by large language models (LLMs)~\citep{gpt3,gpt4,llama} and computer vision systems~\citep{clip,SD,lu2025parasolver}. At its essence, SGD operates through iterative parameter adjustments where each iterative step follows the negative gradient direction of a randomly sampled data batch.
+To produce high-quality models, however, SGD typically necessitates an enormous number of iterative steps involving repeated forward and backward passes through massive datasets, resulting in prolonged training durations. For instance, training modern LLMs like DeepSeek-V3~\citep{liu2024deepseek} and GPT-4~\citep{openai2023gpt4} often demands hundreds of thousands to millions of iteration steps.
+% Even for small-sized models such as ResNet-152~\citep{resnet}, convergence may take up to 600,000 SGD steps on ImageNet~\citep{deng2009imagenet}. 
+As a result,  training a large-scale model consumes millions of GPU hours, roughly amounting to 1-3 months or longer~\citep{openai2023gpt4,liu2024deepseek}. Therefore,  the staggering SGD steps caused by the exponential growth of model and dataset sizes have made a fundamental efficiency bottleneck.
+
+Existing efforts to accelerate SGD training follow two main paradigms. The first develops more advanced optimizers\citep{adammini,LDAdam,Optimization1,optimizer2,adagrad,muon,SGDM} (e.g., Adam~\citep{adam}) to accelerate convergence through refined update rules. However, the reduction in iterative steps is modest at best, as these techniques continue to rely on the sequential step-by-step execution of SGD. The second strategy develops parallel SGD, where workers update the model synchronously or asynchronously. Synchronous methods, typical in distributed learning, require waiting for all nodes to compute gradients before each update, while asynchronous approaches (e.g.,  DC-ASGD~\citep{DC-ASGD} and HOGWILD!~\citep{Hogwild} ) allow workers to update global parameters independently. However, they risk harming model performance because of stale gradients. More critically, their parallelization is confined to intra-step operations, while leaving the inter-step sequential dependency intact, thereby maintaining the total number of training iterations unchanged.
+
+This paper investigates a critical question: \textit{can we drastically reduce gradient descent steps by parallelizing the step execution without sacrificing model performance?} At first glance, the challenge seems insurmountable---GD is inherently sequential, bound by a rigid Markov dependency chain~\citep{ParallelizedSGD}. Surprisingly, we demonstrate that it is possible to completely sever this dependency chain to enable fully parallel gradient computation across different GD steps. In particular, we approach this problem through the lens of non-linear equations, treating the points on the GD iteration trajectory as mutually independent unknown variables. This independence thus naturally eradicates the sequential dependencies between iterations. By solving this system of equations, we achieve fully parallel gradient computation across all steps. Empirical results show this approach converges in far fewer iterations compared to standard sequential GD. Furthermore, our framework is inherently orthogonal to existing approaches, allowing seamless integration with both sequential optimizers (e.g., Adam) and parallel GD variants (e.g., model, pipeline, and data parallelism).
+
+
+
+In summary, this paper contributes the following theoretical and practical advancements:
+\begin{itemize}[leftmargin=*]
+    \item we present PASO, an innovative step-level parallel GD paradigm, through transforming the autoregressive GD  process into solving a system of triangular nonlinear equations;
+    
+    \item we establish that  PASO exhibits guaranteed convergence to the GD  trajectory points with iteration complexity equal to or surpassing that of the autoregressive gradient descent; 
+
+    \item our comprehensive evaluation showcases that  PASO reduces iteration steps by up to \textbf{91}$\times$  and accelerates wall-clock time by \textbf{7.5}$\times$, all without sacrificing quality. 
+\end{itemize}
+
+\section{Related Work}
+\textbf{Model Parallelism.}
+Model parallelism~\citep{jia2019beyond,narayanan2021efficient,xu2021gspmd,yuan2021oneflow,rajbhandari2020zero,ren2021zero,xu2020automatic,gao2025netplacer+}  shards a neural network's parameters across multiple devices to accommodate models too large for a single device's memory. During training, all devices perform partial  computations  in parallel over  its designated subset of parameters.  Subsequently, through collective communication methods like NCCL~\citep{nccl}, the results from each device are aggregated to compute the global gradient, which is then used to update the parameters.
+Early works by \citep{DistBelief,ProjectAdam,xing2015petuum} introduced model parallelism by partitioning model parameters across machines. Recent advances include Mesh-TensorFlow \citep{shazeer2018mesh}, PyTorch's fully sharded data parallel \citep{Pytorch_fsdp}, and Megatron-LM \citep{shoeybi2019megatron} which efficiently parallelizes large models to achieve substantial speedups. 
+Despite enabling the training of enormous models, these frameworks only address model parallelization within one step of gradient descent.
+
+\textbf{Pipeline Parallelism.}
+Pipeline parallelism\citep{he2021pipetransformer,kim2020torchgpipe,li2021terapipe,sun2025mepipe,zhaoarraypipe,tangkoala} aims to reduce idle time by partitioning models among workers per the direction of data flow into multi-stages  and processing micro-batches in an interleaved manner. GPipe \citep{huang2019gpipe} introduced gradient accumulation for consistency across pipeline stages, while PipeDream \citep{narayanan2019pipedream} improved efficiency with "1F1B" scheduling and weight stashing. Despite these innovations, pipeline parallelism maintains sequential dependencies between gradient steps, as each micro-batch must wait for previous steps' gradients to update parameters.
+
+\textbf{Data Parallelism}.
+Data parallelism partitions the training data across multiple workers (e.g., GPUs or nodes), and each worker computes gradients on its local data subset. The gradients are then aggregated to update the model parameters through two primary  mechanisms: synchronous SGD (SSGD) and asynchronous SGD (ASSGD). 
+In SSGD~\citep{zinkevich2010parallelized,dekel2012optimal,dekel2010robust,ye2022flsgd,mcmahan2017communication}, all workers compute gradients in parallel, but the parameter server waits for all workers to finish before applying the aggregated gradients to the model. This ensures consistency but may suffer from stragglers.
+ASSGD~\citep{baudet1978asynchronous,bertsekas2015parallel,cohen2021asynchronous,recht2011hogwild,feyzmahdavian2023asynchronous,stich2021critical,nguyen2022federated,even2024asynchronous,Hogwild,zhang2015deep}  address this limitation by enabling independent parameter updates  without synchronization. A prominent example is HOGWILD!~\citep{Hogwild}, which implements lock-free updates to the shared model parameters in memory.
+However, ASSGD faces challenges with gradient staleness~\citep{dutta2018slow}.  
+
+
+
+
+
+Current methods primarily focus on parallelization within individual GD steps, which retains the inherent limitations of traditional autoregressive GD. In contrast, PASO disrupts this autoregressive dependency chain, introducing step parallelism where multiple different GD steps are executed simultaneously. 
+We humbly believe that PASO's step-level parallelization naturally complements existing intra-step parallelization methods, establishing a new avenue for parallel GD.
+We observe that recent work~\citep{OptEx} leaves kernelized gradient estimation to enable approximately parallelized iterations; our method is compatible with it, as the kernelized gradient estimation can be used to give more precise initial points for our PASO. 
+
+
+% \section{Related Work}
+% Parallel gradient descent algorithms have been extensively studied to accelerate the training of large-scale machine learning models. The existing approaches can be broadly categorized into three paradigms: model parallel, pipeline parallel, and data parallel.
+
+% \textbf{Model Parallel}.
+% Model parallelism focuses on partitioning the neural network model across multiple computing devices. In this approach, different layers or components of the model are assigned to different devices, which compute their respective forward and backward passes simultaneously. Recent advances in model parallelism include TensorFlow's Mesh TensorFlow \citep{shazeer2018mesh} and PyTorch's fully sharded data parallel \citep{li2021pytorch}. These frameworks enable efficient training of extremely large models that cannot fit into the memory of a single device.
+
+% \textbf{Pipeline Parallel}.
+% Pipeline parallelism divides the model into multiple stages and processes different mini-batches through these stages in a pipelined fashion. GPipe \citep{huang2019gpipe} introduced a novel pipeline parallelism scheme that partitions the model across multiple accelerators and splits mini-batches into smaller micro-batches. PipeDream \citep{narayanan2019pipedream} further improved pipeline efficiency by using weight stashing and vertical sync to handle the forward-backward mismatch in pipeline parallelism.
+
+% \textbf{Data Parallel}.
+% Data parallelism is the most widely adopted approach for parallel gradient descent. The core principle involves distributing the training data across multiple computational nodes, where each node performs one or multiple steps of gradient descent on its local data partition before contributing to the global model update. The data parallel approach operates through two primary update mechanisms for the global model update:
+% (1). Synchronous updates: All workers compute gradients simultaneously, and the model is updated only after aggregating gradients from all nodes. This approach, implemented in frameworks like TensorFlow's MirroredStrategy \citep{abadi2016tensorflow}, ensures consistency but may suffer from straggler problems.
+% (2). Asynchronous updates: Workers update the model parameters independently without waiting for others, as demonstrated in the Parameter Server architecture \citep{li2014scaling}. While this approach improves hardware utilization, it may lead to stale gradients and convergence issues.
+
+\section{Preliminary}
+\vspace{-0.3cm}
+
+\subsection{Stochastic Gradient Descent (SGD)}
+Given a mini-batch $\zeta$ of size $B$, the loss function for the batch is defined as the average loss over the samples in $\zeta$:
+\begin{equation}
+\mathcal{L}(w,\zeta) = \frac{1}{B} \sum_{x, y \in \zeta} \ell(w; x, y),
+\end{equation}
+where $\ell(w; x, y)$ denotes the loss for a single sample $(x, y)$. The model parameters $w$ are updated iteratively using the gradient of the batch loss:
+\begin{equation}
+w_{t} = w_{t-1} - \eta_{t-1} \nabla_{w_{t-1}} \mathcal{L}(w_{t-1},\zeta_{t-1}),
+\end{equation}
+where $\eta_t$ is the learning rate at iteration $t$, $\zeta_t$ stands for the mini-batch used at iteration $t$, and $\nabla_w \mathcal{L}(w_t,\zeta_t)$ is the gradient of the batch loss. Other popular optimizers, such as Adaptive Moment Estimation (Adam), also update parameters iteratively. For brevity, a detailed description of these methods is provided in Appendix~\ref{apx:update_rules}.
+
+\vspace{-0.3cm}
+\section{Proposed Method}
+\vspace{-0.3cm}
+
+\subsection{Motivation}
+Gradient descent (GD) algorithms like SGD and Adam use historical weights to compute the current weight, which is the essence of an autoregressive process. We formally define this process below.
+\begin{definition}[Autoregressive GD Procedure]
+\label{def:AR_For_GD}
+Initiating with a model weight $w_0$, the GD process like SGD and Adam represents an autoregressive procedure in the specific form of
+\begin{equation}
+    \label{eq:AR_on_def}
+    w_t = w_0 - \sum_{\tau=0}^{t-1} \eta_\tau \, g_\tau \big( w_\tau, \ldots, w_{\tau - r + 1}; \zeta_\tau, \ldots, \zeta_{\tau - r + 1} \big), t \in \{1,\cdots,T\},
+\end{equation}
+\end{definition}
+where $1 \leq r\leq\tau+1$ and the general gradient term $g_{\tau}$ is determined by the specific optimizer. For example, the  $g_{\tau}$ for SGD depends only on the most recent weight and mini-batch (i.e., $r=1$):
+\begin{equation}
+    \label{eq:SGD_gt}
+    g_{t-1}(w_{t-1};\zeta_{t-1}) = \nabla_{w_{t-1}} \mathcal{L}(w_{t-1},\zeta_{t-1}).
+\end{equation}
+The explicit $g_{t-1}$ formulations for more complex optimizers like Adam are detailed in Appendix~\ref{apx:update_rules}.
+
+
+
+We observe that when all the model weights $w_0, \cdots, w_{T}$ are considered as unknown variables, the autoregressive GD procedure above transforms into a system of $T+1$ nonlinear equations (NEs). By providing an initial set of guesses for the true weights, this system of NEs can be solved in parallel since there are no dependencies among the $T+1$ NEs. As a result, the model weights $w_0, \cdots, w_{T}$ can be computed concurrently.
+
+
+
+\subsection{Recasting Autoregressive GD as Triangular Nonlinear Equation Solving}
+Inspired by current parallel algorithms~\citep{song2021accelerating,tang2024accelerating,lu2025parasolver},   such a series of cascaded functions in Definition~\ref{def:AR_For_GD} can be regarded as a system of $T+1$ NEs with a triangular structure. Denote by $\hat{w}_0,\cdots,\hat{w}_{T}$ the unknown variables corresponding to the iterative tracjectory $w_0,\cdots, w_{T}$ generated from the autoregressive GD process in Definition~\ref{def:AR_For_GD}.
+\begin{definition}[Triangular NEs]
+\label{def:TNEs}
+We define the system of triangular NEs for the autoregressive procedure in Definition~\ref{def:AR_For_GD} as
+\begin{equation}
+\label{eq:TNEs}
+    \mathcal{F}(\hat{w}_0,\cdots,\hat{w}_{T}) = \begin{cases}
+    \hat{w}_{0} - w_{0} =0,\\
+     \hat{w}_{t} - F_{t-1}(\hat{w}_0,\cdots,\hat{w}_{t-1};\zeta_0, \dots, \zeta_{t-1}) = 0 , t \in \{1,\cdots,T\},
+\end{cases}
+\end{equation}
+\end{definition}
+where $F_{t-1}$ is defined as:
+\begin{equation}
+    \label{eq:F_{t-1}}
+    F_{t-1}(\hat{w}_0,\cdots,\hat{w}_{t-1};\zeta_0, \dots, \zeta_{t-1}) = \hat{w}_0 - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(\hat{w}_{\tau}, \dots, \hat{w}_{\tau-r+1}; \zeta_{\tau}, \dots, \zeta_{\tau-r+1}),
+\end{equation}
+where $g_\tau$ depends on the choice of the specific GD algorithms. In Appendix~\ref{apx:update_rules}, we include the explicit form of $g_\tau$ for various GD algorithms like AdamW.
+
+This formulation offers several advantages. First, it decouples the dependencies among $w_t$, enabling synchronous  calculation for all gradients $\nabla_{w_t} \mathcal{L}(w_t, \zeta_t), t \in \{0,\cdots,T-1\}$. This parallelism makes the approach especially suitable for modern parallel computing infrastructures, such as distributed systems.
+Second, the triangular NEs have been extensively studied in mathematics, providing access to a variety of well-established methods for solving such systems efficiently.
+
+While we can now calculate the gradients across steps in parallel by solving the triangular NEs,  an important question remains: do the solutions found via equation solving yield model weights comparable to those generated by the autoregressive GD process? Specifically, can we assert that $\hat{w}_t = w_t$ holds for all $t\in[0, T]$?  
+
+% To address this, we analyze the root of the triangular NEs system in Prop.~\ref{thm:UnbiasedEstimation}.  
+\begin{proposition}[Unbiased Estimation (see \textit{App.~\ref{apx:proof_UnbiasedEstimation}} for proof)]
+\label{thm:UnbiasedEstimation}
+The TNEs system in Eq.~\eqref{eq:TNEs} possesses a unique solution that unbiasedly estimates the GD  trajectory $\{w_\tau\}_{\tau=0}^T$ in Definition~\ref{def:AR_For_GD}.
+\end{proposition}
+
+This finding demonstrates that by solving for the TNEs, a model of comparable quality to that derived from the traditional autoregressive GD process can be obtained.
+
+
+
+\subsection{Solving the System of TNEs}
+The field of optimization provides various  methods for solving a system of NEs. Since our primary goal is to study a fundamental step-parallel GD optimizer, we implement only the classical fixed-point iteration (FPI) method~\citep{banach1922operations} and postpone more advanced alternatives for future exploration. Applying FPI to find the solution of an equation system involves reformulating the equation system into an iterative form. It is easy to know the iterative form of Eq.~\eqref{eq:TNEs} corresponds to a system with $T$ iterative components in Eq.~\eqref{eq:Fixed_Point_Iter}. Therefore,
+given an initial set of guesses $\hat{w}_0^{(0)},\cdots,\hat{w}_{T}^{(0)}$, and randomly sampled $T$ mini-batches $\zeta_0, \dots, \zeta_{T-1}$, the system of FPI for the TNEs is as follows:
+\begin{equation}
+    \label{eq:Fixed_Point_Iter}
+    \hat{w}_{t}^{(k)} = F_{t-1}(\hat{w}_0^{(k-1)},\cdots,\hat{w}_{t-1}^{(k-1)};\zeta_0, \dots, \zeta_{t-1}),t \in \{0,\cdots,T-1\},
+\end{equation}
+where  $\hat{w}_0^{(k)} = w_0,  \forall k \in\{0,\cdots,K\}$; $K$ is the number of parallel iterations. For a more intuitive FPI system, see Definition~\ref{def:FPI_SYSTEM} in Appendix.
+
+
+\begin{proposition}[Convergence Analysis (see \textit{App.~\ref{apx:proof_ContractionMapping}} for proof)]
+\label{thm:ContractionMapping}
+From any initial guess $\{\hat{w}_{t}^{(0)}\}_{t=0}^{T}$, the fixed-point iteration in Eq.~\eqref{eq:Fixed_Point_Iter} converges exactly to the autoregressive GD trajectory $\{w_t\}_{t=0}^{T}$ defined in Definition~\ref{def:AR_For_GD}. This convergence is achieved in at most $T$ steps.
+\end{proposition}
+
+In practice, the number of parallel iterations \( K \) required for convergence is significantly smaller than \( T \), resulting in substantial empirical speedups. Besides, we also provide empirical validation that the PASO trajectory is functionally equivalent to the original, with the near-zero average L2 norm and variance between them confirming a high-fidelity reproduction (\textit{App.~\ref{app_sec:Trajectory_Equivalence}}).
+
+
+\subsection{Computation-efficient Subequations Solving}
+Solving the above triangular NEs necessitates computing $T$ gradients $\{\nabla_{\hat{w}_t}\mathcal{L}(\hat{w}_t,\zeta_t)\}_{t=0}^{T-1}$ in parallel across the entire time horizon.  For large values of $T$,  this becomes computationally prohibitive when restricted to a limited number of computing nodes.
+To tackle this, our core idea is to perform the fixed-point iteration only on $p \leq T$ subequations per iteration via a sliding window technique in ~\citep{Picard}. Specifically, we perform parallel equation solving only on a subset of $T+1$ NEs, within a sliding window of size $p$:
+\begin{equation}
+\label{eq:Fixed_Point_Iter_window}
+    \hat{w}_{t+i}^{(k)} = F_{t-1+i}(\hat{w}_0^{(k-1)},\cdots,\hat{w}_{t-1+i}^{(k-1)};\zeta_0, \dots, \zeta_{t-1+i}),i \in \{0,\cdots,\min\{p-1,T-1\}\},
+\end{equation}
+This window size can be tuned to match the number of available computing nodes. Additionally,  the window slides forward dynamically, with the sliding distance determined by the number of equations for which solutions have been found in the current window.
+
+\subsection{Stopping Criterion}
+To ensure that the parallel optimizer achieves performance on par with that of the autoregressive GD process, it's essential to establish a suitable stopping criterion to assess whether the solution values are no longer changing each parallel iteration.   Let $\delta$ represent the convergence tolerance threshold, governing the allowable variation in solution values between successive iterations. In accordance with~\citep{dreampropeller}, we define the stopping criterion as:
+\begin{equation}
+\label{eq:StopCriterion}
+    d(\hat{w}_t^{(k)},\hat{w}_t^{(k-1)}) := \frac{1}{n}\left\|\hat{w}_t^{(k)}- \hat{w}_t^{(k-1)} \right\|^2 \leq \delta,
+\end{equation}
+where $\left\|\cdot\right\|$ denotes the Frobenius norm; $n$ is  model dimension.
+$\delta$ is updated adaptively via exponential moving average (EMA):
+\begin{equation}
+\label{eq:delta_EMA}
+    \delta = \lambda\delta + (1-\lambda)\cdot\mathcal{A}\Big(\big\{d(\hat{w}_{t+i}^{(k)},\hat{w}_{t+i}^{(k-1)})|i = 1,\cdots,p\big\}\Big) ,
+\end{equation}
+where $\lambda$ is the EMA decay rate; $\mathcal{A}$ is a mean or median function.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/PASO_V10.png}
+ \caption{Illustration of  Step-parallel Training Paradigm PASO. During iteration $k$, PASO performs simultaneous weight updates across steps within a $p$-size sliding window through parallel gradient computations. The process consists of: (1)~computing update terms $g^{(k)}$ based on current weights $\hat{w}^{(k)}$ after calculating their graidients in parallel; followed by (2)~determining new weights $\hat{w}^{(k+1)}$. }
+    \label{fig:PASO_Pipeline}
+\end{figure}
+
+\subsection{Initialization}
+The parallel iteration in Eq.~\eqref{eq:Fixed_Point_Iter_window} begins with a set of initial weights $\{\hat{w}_{t}^{(0)}\}_{t=0}^{p}$.   We initialize all the model parameters within the $p$-sized sliding window  using the default initial weight $w_0$: $\hat{w}_{t}^{(0)} =  w_{0}, \forall t \in \{0,\cdots,p\}.$
+When the sliding window moves forward, we initialize all the newly introduced model parameters using the rightmost weight from the previous window.
+We emphasize that initialization also stands as a crucial component for improving parallel efficiency.  By starting iterations with weights that are close approximations of the target solutions $\{w_{t}\}_{t=0}^{p}$, more rapid convergence can be achieved. We defer this critical aspect to future research.
+
+\subsection{Complete PASO Algorithm}
+Algorithm~\ref{Alg:ParaGD} details the complete process of the proposed PASO over a sliding window.  After obtaining the autoregressive GD update rule (Line~\ref{Line:update_rule}) and
+preparing an array of initial weights $\{\hat{w}_{t}^{(0)}\}_{t=0}^{p-1}$ via the default model weight  (Line~\ref{Line:2}),  PASO initiates the parallel optimization loop at Line~\ref{Line:while} in which a batch of weights  $\{\hat{w}_{t}^{(k)}\}_{t=0}^{p-1}$ within a sliding window undergo synchronous updating. 
+Line~\ref{Line:grads} compute the gradients, which are the basic computational units of parallelism.
+The updates are computed in Line~\ref{line:g_t}, and Line~\ref{line:w_update} updates the current model weights, preparing for the next parallel iteration $k+1$. Line~\ref{line:stride} checks the variation between new weights and the current weights and then determines the stride to which the window can slide forward. Line~\ref{Line:new_Initilize} initializes  new model parameters outside the current window using the rightmost weight in the current window according to the sliding stride $s$. Fig.~\ref{fig:PASO_Pipeline} shows the pipeline of PASO. 
+
+\begin{algorithm}[t]
+\SetKwInOut{KIN}{Input}
+\SetKwInOut{KOUT}{Output}
+\SetKwInput{KwReturn}{Return}
+\caption{PASO: Step Parallel  Stochastic Optimization  within A Sliding Window}
+\label{Alg:ParaGD}
+\footnotesize
+\LinesNumbered
+\KIN{Default model initial weight $w_{0}$, gradient descent steps $T$, learning rate $\{\eta_t\}_{t=0}^{T-1}$, random mini-batches $\{\zeta_t\}_{t=0}^{T-1}$, tolerance $\delta$, window size $p$, model dimension $n$, EMA decay rate $\lambda$.}
+\KOUT{$\hat{w}_T^{K}$.}
+
+Obtain update rule $g_{t}(\hat{w}_{t},\cdots,\hat{w}_{t-r+1};\zeta_{t},\cdots,\zeta_{t-r+1})$ by a  GD algorithm.  \label{Line:update_rule} \hfill 
+\textcolor{commentcolor}{// E.g., Eq.~\eqref{eq:SGD_gt} or Eq.~\eqref{eq:Adam_gt}} 
+\\
+Initialize $\{\hat{w}_{t}^{(0)} = w_0, t=0,\cdots,p\}$ \label{Line:2} \hfill \textcolor{commentcolor}{// Initialize $p$ model weights within the sliding window.} \\
+$t,k \leftarrow 0,0$; $k \in [0, K]$ \\
+\label{Line:while}\While{$t < T$}{
+$\nabla_{\hat{w}_{t+i}^{(k)}} \mathcal{L}(\hat{w}_{t+i}^{(k)}, \zeta_{t+i}), \forall i \in \{0, \cdots, p-1\}$\label{Line:grads} \hfill \textcolor{commentcolor}{// Compute each gradient concurrently.}  \\
+$g_{t+i}^{(k)}, \forall i \in \{0, \cdots, p-1\}$ \label{line:g_t} \hfill \textcolor{commentcolor}{// Calculate updates in parallel (e.g., via Eq.~\eqref{eq:SGD_gt}).} \\
+$w_{t+i+1}^{(k+1)}\leftarrow \hat{w}_{t}^{(k)} -\sum\limits_{j=t}^{t+i} \eta_{j}g_{j}^{(k)}, \forall i \in \{0, \cdots, p-1\}$ \label{line:w_update}\hfill \textcolor{commentcolor}{// Update  weights at iteration $k$  via Eq.~\eqref{eq:Fixed_Point_Iter}.} \\
+$s \leftarrow \operatorname*{min}\big(\big\{i+1; \hat{w}_{t+i+1}^{(k+1)} \text{ unsatisfying Eq.}~\eqref{eq:StopCriterion}, \forall i \in \{0, \cdots, p-1\}\big\}\cup\big\{p\big\}\big)$ \label{line:stride}\hfill \textcolor{commentcolor}{// The sliding stride.} \\
+% $s\leftarrow\min\{1,s\}$ \hfill \textcolor{commentcolor}{// Sliding stride \( s=1 \) corresponds to autoregressive GD.} \\
+$\hat{w}_{t+p+j}^{(k+1)} \leftarrow \hat{w}_{t+p}^{(k)}, \forall j \in\{1,\cdots,s\}$ \label{Line:new_Initilize}\hfill \textcolor{commentcolor}{// Initialize new model weights.} \\
+$\delta \leftarrow \text{Eq.}~\eqref{eq:delta_EMA}$\label{line:delta_update}\hfill \textcolor{commentcolor}{// Update tolerance via exponential moving average.} \\
+$t \leftarrow t+ s, \quad k \leftarrow k+1,\quad p \leftarrow \min (p, T-t)$
+}
+\KwReturn{$\hat{w}_{T}^{(K)}$}
+\end{algorithm}
+
+
+\section{Computational Cost, Memory, and Speedup Ratio Analysis}
+\label{sec:comparative_analysis}
+PASO introduces a novel \textit{step-parallel} approach that is orthogonal to traditional parallelization paradigms. This naturally raises a key question: \textit{under comparable computational and memory constraints, how does the speedup efficiency of PASO compare to that of conventional methods?}
+% PASO introduces a novel \textit{step-parallel} approach that is orthogonal to traditional parallelization paradigms.  This raises a crucial question: \textit{under similar computational and memory constraints, how does PASO compare with them in terms of speedup efficiency?} 
+To this end, Table~\ref{tab:speedup_comparison_main} provides a comprehensive comparison against existing methods, indicating three main conclusions: 
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Acceptable Overhead:} The total computational cost of PASO ($mT$) is comparable to that of model and pipeline parallelism ($T$) and significantly lower than data parallelism ($NT$). This minimal overhead is a worthwhile trade-off for the performance gains.
+
+    \item \textbf{Superior Speedup:} The speedup ratio of PASO is $\frac{N}{m(1 + \alpha N/p)}$. Since $m \approx 1$ and $p > 1$, PASO's speedup is strictly greater than the $\frac{N}{1 + \alpha N}$ achieved by other methods. This indicates that PASO can be approximately up to $\mathbf{p}$ times faster than existing parallel approaches.
+
+    \item \textbf{Better Scalability:}  When the window size equals the number of GPUs ($p=N$), PASO's speedup ratio simplifies to $\frac{N}{m(1 + \alpha)}$. As $N$ increases, the denominator in PASO's speedup formula grows much more slowly than in other methods (where it is dominated by the $\alpha N$ term), demonstrating PASO's superior scalability, especially in communication-bound scenarios.
+\end{enumerate}
+\begin{table}[h!]
+\centering
+\caption{Comparison of computational cost, storage, and speedup ratio across parallel training methods. The analysis shows PASO's superior speedup potential and scalability. Denote by $N$  the number of GPUs, $\alpha \triangleq t_{\text{comm}}/t_{\text{comp}}$ the communication-to-computation time ratio, and $m \triangleq T/pK\approx 1$ empirically (see Fig.~\ref{fig:m_ratio_appendix} in \textit{Appendix}). Detailed derivations are available in \textit{Appendix~\ref{app:speedup_analysis}.}}
+\label{tab:speedup_comparison_main}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Method} & \textbf{Computational Gradient Count} & \textbf{Storage per Device} & \textbf{Speedup Ratio ($S$)} & \textbf{Scalability Limit ($\lim_{N \to \infty} S$)} \\
+\midrule
+Sequential & $T$ & 1 model + 1 optimizer & $1$ & $1$ \\
+Data Parallel & $NT$ & 1 model + 1 optimizer & $\frac{N}{1 + \alpha N}$ & $1/\alpha$ \\
+Model Parallel & $T$ & $\sim \frac{1}{N}$ model + 1 optimizer & $\frac{N}{1 + \alpha N}$ & $1/\alpha$ \\
+Pipeline Parallel & $T$ & $\sim \frac{1}{N}$ model + 1 optimizer & $\frac{N}{1 + \alpha N}$ & $1/\alpha$ \\
+\textbf{Step Parallel (PASO)} & $\mathbf{pK = mT}$ & \textbf{1 model + 1 optimizer} & $\mathbf{\frac{N}{m(1 + \alpha N/p)}}$ & $\mathbf{p/(m\alpha)}$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+In summary, under similar  costs, PASO achieves a higher theoretical speedup and exhibits better scalability than existing parallel methods. We believe our step-parallel approach holds significant potential for fully leveraging modern parallel hardware for deep learning training.
+
+\section{Experiment}
+% We evaluate PASO over two popular model training tasks, including image classification and text generation model. The results of these experiments demonstrate that PASO enhances the efficiency of autoregressive GD methods by approximately 1.5 times, all while maintaining consistent sample quality as measured by metrics like accuracy or perplexity.
+% \subsection{Image Classification Model Training}
+\subsection{Experiment Settings}
+\vspace{-0.2cm}
+\textbf{Dataset and Model.} We investigate our PASO on both an image classification task and a language modeling task.  For the image task, we use the CIFAR-10 dataset~\citep{cifar10} over a compact  convolutional neural network (CNN) and Tiny-ImageNet dataset~\citep{Tinyimagenet} on a more harder ViT model.   For the language modeling task, we train a GPT-2 model and 1B large model Llama-3.2-1B on the WikiText dataset. 
+Further experimental details are provided in the appendix.
+
+
+% We investigate our PASO on both an image classification task and a language modeling task.  \textbf{For the image task}, we use the CIFAR-10 dataset~\citep{cifar10}, a widely recognized benchmark in computer vision. The dataset comprises 60,000 $32 \times 32$ RGB images spanning 10 distinct classes, divided into 50,000 training and 10,000 test samples. The small image size and real-world noise make CIFAR-10 a challenging yet efficient testbed for lightweight models. We evaluate our approach by training a compact Convolutional Neural Network (CNN), following a standard architecture with convolutional and pooling layers.  \textbf{For the language task}, we train a GPT-2 model\footnote{https://github.com/openai/gpt-2} on the WikiText dataset\footnote{https://www.salesforce.com/blog/the-wikitext-long-term-dependency-language-modeling-dataset}, a large-scale corpus of Wikipedia articles preprocessed for language modeling. The dataset is publicly available and commonly used for training and benchmarking autoregressive models like GPT-2. We adopt the standard GPT-2 architecture (124M parameters), leveraging Hugging Face's \texttt{transformers} library for tokenization and training loops. 
+% We assess the performance of all methods on 8 NVIDIA RTX 3090 GPUs, each equipped with 24268 MB of memory. 
+% Further experimental details are provided in the supplementary material.
+
+\textbf{Evaluation Metrics.}
+For the CIFAR-10 dataset, we evaluate the performance using six standard metrics: testing accuracy, testing precision, testing recall, testing F1-score, iterations, and wall-clock time. 
+For the WikiText dataset, we evaluate the performance using four standard metrics: testing accuracy, testing perplexity, iterations, and wall-clock time. 
+% These metrics collectively assess both the effectiveness and efficiency of our PASO. 
+% For evaluation of the wall-clock time, we use the \textit{torch.cuda.Event}\footnote{https://pytorch.org/docs/stable/generated/torch.cuda.Event.html} method provided by Pytorch~\citep{paszke2019pytorch}.
+
+% \textbf{Algorithms}. 
+% We accelerate three widely used optimizers: SGD, Adam, and AdamW. We refer their parallel variants as ParaSGD, ParaAdam, and ParaAdamW, respectively.
+
+
+
+\textbf{Hyperparameter Settings}. For the GPT2, Llama-3.2-1B, and ViT model, we use 8 NVIDIA A100 GPUs.   For CNN, we use 8 NVIDIA 3090 GPUs.
+We employ the sweep function in Wandb~\citep{wandb} to investigate the influence of hyperparameters on the model's performance metrics, configuring a hyperparameter sweep with the following search ranges:  tolerance threshold $\delta$ sampled uniformly in $[10^{-6},10^{-4}]$, EMA decay rate $\lambda$ sampled uniformly in $[0.8,0.9999]$, and adaptivity scheme $\mathcal{A}$ chosen between \textit{mean} and \textit{median} operators.  We found setting $\delta =10^{-5}$ and $\lambda  \in [0.9,0.9999]$ easily yields comparable performance across models and datasets. Please refer to \textit{Appendix} for the sweep results in Fig.~\ref{fig:ema_tor}.
+
+\vspace{-0.3cm}
+\subsection{Experiment Results}
+\vspace{-0.3cm}
+% \begin{wraptable}{r}{0.75\textwidth}
+% \end{wraptable}
+% \begin{table*}[!t]
+%   \caption{\label{Table:cifar_CMP}Quantitative comparisons of different methods on CIFAR-10. }
+%   \vspace{0.01cm}
+%   \label{tab-exp-underwaterb}
+%   \centering
+%   \setlength{\tabcolsep}{0.1mm}{
+%   \renewcommand{\arraystretch}{1.2}
+%   \begin{tabu}{c|ccccccc}
+%     \toprule[1.5pt]
+%      \multirow{2}{*}{Method} &\multicolumn{7}{c}{CIFAR-10, CNN Model}\\
+%     \cmidrule(lr){2-8}
+%     &~\begin{tabular}[c]{@{}c@{}}Iters$\downarrow$ \end{tabular} $\downarrow$~&~\begin{tabular}[c]{@{}c@{}}Accuracy\end{tabular} $\uparrow$~ &~Precision$\uparrow$~ &~Recall$\uparrow$~ &~F1-score$\uparrow$~&~Time (m) $\downarrow$~ &~Speedup$\uparrow$~\\
+%     \midrule
+%     SGD     &60000 &70.94 &70.887 &70.94 &70.903  &10.0 \hfill\progressbar{100} &1.0$\times$\\
+%     SGD + PASO     &\textbf{6.9} (8.7$\times$) &71.76 &71.792 &71.76 &71.761  &1.1 \hfill\progressbar{11} &8.7$\times$\\
+%     \midrule
+%     Adam      &60000 &71.04 &?? &?? &??  &?? \hfill\progressbar{100} &1.0$\times$\\
+%     Adam + PASO      &\textbf{1539} (3.24$\times$) &?? &?? &?? &??  &\textbf{??} \hfill\progressbar{50} &3.24$\times$\\
+%     \midrule
+%    AdamW       &60000 &65.46 &?? &?? &??  &?? \hfill\progressbar{100} &1.0$\times$\\
+%     AdamW + PASO     &\textbf{1787} (2.80 $\times$) &71.87 &70.948 &71.06 &0.820  &?  \hfill\progressbar{60} &2.80$\times$\\
+%     \bottomrule[1.5pt]
+%   \end{tabu}}
+%   \vspace{-0.5cm}
+% \end{table*}
+
+\begin{figure}[htbp]
+
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/training_loss_AdamW_GPT2.png}
+            (a) GPT2
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/training_loss_Adam_Llama3.2_1B.png}
+            \subcaption{(b) Llama-3.2-1B}
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/training_loss_AdamW_CIFAR10_CNNN.png}
+            % (c) ParaAdamW
+            \subcaption{(c) CNN}
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{iclr2026/figures/training_loss_AdamW_CIFAR10_VIT.png}
+            % (c) ParaAdamW
+            \subcaption{(d) ViT}
+        \end{minipage}
+    % \end{minipage}
+    \vspace{0.5cm}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/training_ppl_AdamW_GPT2.png}
+            (a) GPT2
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/training_PPL_Adam_Llama3.2_1B.png}
+            \subcaption{(b) Llama-3.2-1B}
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/training_acc_AdamW_CIFAR10_CNN.png}
+            % (c) ParaAdamW
+            \subcaption{(c) CNN}
+        \end{minipage}
+        \begin{minipage}{0.24\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{iclr2026/figures/training_acc_AdamW_CIFAR10_VIT.png}
+            % (c) ParaAdamW
+            \subcaption{(d) ViT}
+        \end{minipage}
+     \vspace{-15pt}
+     \caption{\label{fig_cifar10_curve}The comparison of loss, perplexity, and accuracy curves.}
+    \vspace{-10pt}
+\end{figure}
+\begin{table*}[!t]
+  \caption{\label{Table:wiki_CMP}Quantitative comparisons of different methods on WiKiText. The best results are highlighted in \textbf{bold}. ``$\uparrow$" (resp. ``$\downarrow$") means the larger (resp. smaller), the better.}
+  % \vspace{0.01cm}
+  \label{tab-exp-underwaterb}
+  \centering
+  \setlength{\tabcolsep}{0.1mm}{
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabu}{c|ccccc}
+    \toprule[1.5pt]
+    \multirow{2}{*}{Method} & \multicolumn{5}{c}{WiKiText, GPT-2 Model, $B=130$, $\eta=6e-5$, $T=1000$} \\
+    \cmidrule(lr){2-6}
+    & \begin{tabular}[c]{@{}c@{}}Iters\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Accuracy\end{tabular} $\uparrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Perplexity\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Time (s)\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Speedup\end{tabular} $\uparrow$ \\
+    \midrule
+    SGD     & 1000           & 86.8  & 1.8  & 713 \hfill\progressbar{128} & 1.0$\times$ \\
+    ParaSGD (SGD + PASO)
+    & \textbf{52} (19.2$\times$) & 86.8  & 1.8  & \textbf{95} \hfill\progressbar{17.1} & \textbf{7.5}$\times$ \\
+    \midrule
+    Adam    & 1000            & 86.9  & 1.6  & 716 \hfill\progressbar{128}  & 1.0$\times$ \\
+    ParaAdam (Adam + PASO)    & \textbf{57} (17.5$\times$) & 86.9  & 1.6  & \textbf{106} \hfill\progressbar{18.8}  & \textbf{6.8}$\times$ \\
+    \midrule
+    AdamW   & 1000           & 86.9  & 1.6  & 715 \hfill\progressbar{128} & 1.0$\times$ \\
+
+    ParaAdamW (AdamW + PASO)   & \textbf{57} (17.5$\times$) & 86.9 & 1.6  & \textbf{107} \hfill\progressbar{18.8}  &\textbf{6.7}$\times$ \\
+    \toprule[1.5pt]
+    \multirow{2}{*}{Method} & \multicolumn{5}{c}{WiKiText, Llama-3.2-1B Model, $B=30$, $\eta = 6e-5$, $T=1000$} \\
+    \cmidrule(lr){2-6}
+    & \begin{tabular}[c]{@{}c@{}}Iters\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Accuracy\end{tabular} $\uparrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Perplexity\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Time (s)\end{tabular} $\downarrow$ 
+    & \begin{tabular}[c]{@{}c@{}}Speedup\end{tabular} $\uparrow$ \\
+    \midrule
+    SGD     & 1000           & 86.3  & 1.6  & 827 \hfill\progressbar{128} & 1.0$\times$ \\
+    ParaSGD (SGD + PASO)
+    & \textbf{69} (14.5$\times$) & 86.4  & 1.6  & \textbf{266} \hfill\progressbar{41.3} & \textbf{3.1}$\times$ \\
+    \midrule
+    Adam    & 1000            & 86.3  & 1.4  & 838 \hfill\progressbar{128}  & 1.0$\times$ \\
+    ParaAdam (Adam + PASO)    & \textbf{79} (12.6$\times$) & 86.3  & 1.4  & \textbf{279} \hfill\progressbar{42.6}  & \textbf{3.0}$\times$ \\
+    \midrule
+    AdamW   & 1000           & 86.3  & 1.4  & 854 \hfill\progressbar{128} & 1.0$\times$ \\
+
+    ParaAdamW (AdamW + PASO)   & \textbf{78} (12.8$\times$) & 86.3 & 1.4  & \textbf{281} \hfill\progressbar{42.6}  &\textbf{3.0}$\times$ \\
+    \bottomrule[1.5pt]
+  \end{tabu}
+  % \vspace{-0.5cm}
+\end{table*}
+\begin{table*}[!t]
+\vspace{-0.6cm}
+  \caption{\label{Table:cifar_CMP}Quantitative comparisons of different methods on CIFAR-10.}
+  \vspace{0.01cm}
+  \label{tab-exp-underwaterb}
+  \centering
+  \setlength{\tabcolsep}{0.1mm}{
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabu}{c|ccccccc}
+    \toprule[1.5pt]
+     \multirow{2}{*}{Method} &\multicolumn{7}{c}{CIFAR-10, CNN Model, $B=4096$, $\eta=1e-3$}\\
+    \cmidrule(lr){2-8}
+    &~\begin{tabular}[c]{@{}c@{}}Iters$\downarrow$ \end{tabular} ~&~\begin{tabular}[c]{@{}c@{}}Accuracy\end{tabular} $\uparrow$~ &~Precision$\uparrow$~ &~Recall$\uparrow$~ &~F1-score$\uparrow$~&~Time (s) $\downarrow$~ &~Speedup$\uparrow$~\\
+    \midrule
+    SGD     &60000 &66.0 &66.0 &66.0 &66.0  &4277 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaSGD \\(SGD + PASO)  \end{tabular}      &\textbf{1723} (34.8$\times$) &66.1 &66.2 &66.1 &66.1  &\textbf{1339} \hfill\progressbar{40} &\textbf{3.2}$\times$\\
+    \midrule
+    Adam      &60000 &59.7 &59.7 &60.0 &59.7  &4223 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaAdam \\(Adam + PASO)  \end{tabular}      &\textbf{1919} (31.2$\times$) &60.0 &60.0 &60.0 &60.0  &\textbf{1574} \hfill\progressbar{47.4} &\textbf{2.7}$\times$\\
+    \midrule
+   AdamW       &60000  &60.4 &60.4 &60.4 &60.3  &4267 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaAdamW \\(AdamW + PASO)  \end{tabular}       &\textbf{1924} (31.2$\times$) &60.2 &60.2 &60.2 &60.2  &\textbf{1573} \hfill\progressbar{47.4} &\textbf{2.7}$\times$\\
+    \toprule[1.5pt]
+     \multirow{2}{*}{Method} &\multicolumn{7}{c}{CIFAR-10, ViT Model, $B=2048$, $\eta=1e-5$}\\
+    \cmidrule(lr){2-8}
+    &~\begin{tabular}[c]{@{}c@{}}Iters$\downarrow$ \end{tabular} ~&~\begin{tabular}[c]{@{}c@{}}Accuracy\end{tabular} $\uparrow$~ &~Precision$\uparrow$~ &~Recall$\uparrow$~ &~F1-score$\uparrow$~&~Time (s) $\downarrow$~ &~Speedup$\uparrow$~\\
+    \midrule
+    SGD     &60000 &37.2 &39.1 &37.2 &37.0  &36305 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaSGD \\(SGD + PASO)  \end{tabular}      &\textbf{3975} (15.1$\times$) &37.6 &39.1 &37.6 &37.3  &\textbf{10481} \hfill\progressbar{37} &\textbf{3.5}$\times$\\
+    \midrule
+    Adam      &60000 &71.6 &71.7 &71.6 &71.5  &36282 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaAdam \\(Adam + PASO)  \end{tabular}      &\textbf{4219} (14.2$\times$) &71.6 &71.7&71.6 &71.5  &\textbf{11185} \hfill\progressbar{40} &\textbf{3.2}$\times$\\
+    \midrule
+   AdamW       &60000 &72.0 &72.0 &72.0 &72.0  &36310 \hfill\progressbar{128} &1.0$\times$\\
+    \begin{tabular}[c]{@{}c@{}}ParaAdamW \\(AdamW + PASO)  \end{tabular}       &\textbf{4231} (14.2$\times$) &71.9 &72.0 &71.9 &72.0 &\textbf{11208} \hfill\progressbar{40} &\textbf{3.2}$\times$\\
+    \bottomrule[1.5pt]
+  \end{tabu}}
+  \vspace{-0.5cm}
+\end{table*}
+
+
+\textbf{Language Modeling Task}. Table~\ref{Table:wiki_CMP}  demonstrate that PASO accelerates the convergence of these optimizers without sacrificing model performance. 
+Notably, PASO reduces the required iteration steps for sequential methods by a factor of $12.6 \sim 19.2$, resulting in a up to $7.5\times$ improvement in wall-clock time. This speedup implies that an LLM  originally requiring 100 days of training can now be trained in just 13 days. Note that larger batch sizes could yield higher runtime speedups for Llama-3.2-1B, but our present implementation supports a maximum batch size of only 30.
+
+
+\textbf{Image Classification Task}. 
+Table~\ref{Table:cifar_CMP} compares SGD, Adam, and AdamW with their PASO-enhanced versions, showing that PASO consistently accelerates convergence while preserving model performance. For instance,  in CNN model, Adam+PASO achieves a 31.2$\times$ step reduction (to 1919) with a 2.7$\times$ runtime speedup.  The accuracy, precision, recall, and F1-score, confirm  PASO's efficiency without compromising model quality. Note that in CV tasks, the smaller runtime speedup than the LLM tasks is due to the higher communication-to-computation ratio, as CV models are smaller and compute faster per step, making communication overhead more significant.
+
+
+
+
+\begin{wraptable}{r}{0.38\textwidth}
+    \vspace{-15pt} % Optional: Adjusts vertical spacing to pull the table up
+    \centering
+    \small % Use a smaller font size for the table
+    \setlength{\tabcolsep}{1pt} % Reduce space between columns
+    \caption{Impact of $p$ on accuracy (ACC), perplexity (PPL), and speedup.}
+    \label{tab:Effect_of_p}
+    \begin{tabular}{@{}lccccc@{}}
+        \toprule
+        \textbf{} &Iters  &PPL &ACC  & Time (s) & Speedup \\
+        \midrule
+        AdamW & 1000 &1.6 &86.9 &1063 & 1$\times$ \\
+        \midrule
+        $p=7$   & 184 &1.6  &86.9& 182 & 5.8$\times$ \\
+        $p= 35$  & 39 & 1.6 & 86.9 & 173 & \textbf{6.1}$\times$ \\
+        $p= 77$  & 21 & 1.6 & 86.8 & 209 & 5.1$\times$ \\
+        $p= 117$  & 16 & 1.6 & 86.8 & 235 & 4.5$\times$ \\
+        $p= 159$  & 12 & 1.6 & 86.8 & 240 & 4.4$\times$ \\
+        $p= 201$  & 11 & 1.6 & 86.7 & 267 & 4.0$\times$ \\
+        \bottomrule
+    \end{tabular}
+\end{wraptable}
+\textbf{Impact of the Window Size $p$}. 
+Tab.~\ref{tab:Effect_of_p} illustrates 
+the influence of the window size \( p \) on the speedup of AdamW with 1000 steps over the GPT-2 model with batch size $130$.
+As \( p \) increases, the number of iterations needed for convergence significantly drops, from 184 to 11, yielding a step reduction ranging from \( 4.0\times \) to \textbf{91}\( \times \). 
+This suggests that we can achieve up to $91\times$ walk-clock time acceleration without loss of model quality using  $201$ GPUs.
+However, due to our current constrained GPU resources, larger \( p \) values introduce higher computational overhead per GPU, leading to increased wall-clock time. We believe that with more computing cores, the time speedup of PASO could be substantially unleashed.  
+
+
+\begin{wraptable}{r}{0.38\textwidth}
+    \vspace{-25pt} % Optional: Adjusts vertical spacing to pull the table up
+    \centering
+    \small % Use a smaller font size for the table
+    \setlength{\tabcolsep}{1pt} % Reduce space between columns
+    \caption{Impact of batch size ($B$) on perplexity (PPL) and  Accuracy (ACC). Top to bottom: $B = 10, 50, 90, 130 $.}
+    \label{tab: effect_of_batch_size}
+    \begin{tabular}{@{}l|ccccc@{}}
+        \toprule
+        \textbf{Method} &Iters   &ACC  &PPL   & Time (s)  & Speedup \\
+        \midrule
+        AdamW & 1000 &86.9  & 1.6 &146 & 1$\times$ \\
+        PASO     & 64 &86.9  & 1.6 &61 & 2.4$\times$ \\
+        \midrule
+        % AdamW & 1000 &86.95  & 1.59 &201 & 1$\times$ \\
+        % Size $30$   & 59 & 86.95 & 1.62 & 76 & 2.6$\times$ \\
+        % \midrule
+        AdamW & 1000 &87.0  & 1.6 &301 & 1$\times$ \\
+        PASO  & 57 & 87.0 & 1.6 & 90 & 3.3$\times$ \\
+        \midrule
+        % AdamW & 1000 &86.89  & 1.58 &715 & 1$\times$ \\
+        % PASO $70$  & 57 & 86.89 & 1.61 & 107 & 6.7$\times$ \\
+        % \midrule
+        AdamW & 1000 &86.9  & 1.6 &822 & 1$\times$ \\
+        PASO  & 56 & 86.9 & 1.6 & 121 & 6.8$\times$ \\
+        \midrule
+        % AdamW & 1000 &87.09  & 1.57 &949 & 1$\times$ \\
+        % PASO $110$  & 56 & 87.08 & 1.60 & 138 & 2.1$\times$ \\
+        % \midrule
+        AdamW & 1000 &86.9  & 1.6 &1063 & 1$\times$ \\
+        PASO  & 56 & 86.9 & 1.6 & 155 & \textbf{6.9}$\times$ \\
+        \bottomrule
+    \end{tabular}
+\end{wraptable}
+\textbf{Impact of Batch Size}.
+As shown in Tab.~\ref{tab: effect_of_batch_size}, 
+the speedup of PASO becomes more significant as the batch size increases, while maintaining  performance comparable to the baseline. 
+This is because a larger batch size allows for better utilization of the GPU's computing capabilities for large-scale matrix operations, thereby improving parallel efficiency. More ablation studies on  EMA decay rate and tolerance are shown in \textit{Appendix}~\ref{app:Hyperparameters}.
+
+\begin{wrapfigure}{r}{0.5\textwidth} 
+    \vspace{-10pt} % 垂直微调，向上移动一点，防止与上方文字距离过大
+    \centering % 图片在wrapfigure内部居中
+    \includegraphics[width=\linewidth]{iclr2026/figures/Learning_rate_Iter_Acc (2).png}
+    \vspace{-20pt}
+    \caption{Impact of learning rate on accuracy and iterations. The total steps are 10000. Darker points indicate faster convergence.}
+    \label{fig:lr_wrap}
+    \vspace{-20pt} % 垂直微调，向下移动一点，防止与下方文字距离过小
+\end{wrapfigure}
+\textbf{Impact of Learning Rate}.
+Figure~\ref{fig:lr_wrap} illustrates that PASO performs robustly across a practical range of learning rates from $4 \times 10^{-4}$ to $1 \times 10^{-2}$. These rates are comparable to those in standard optimizers (e.g., Adam's default of $1 \times 10^{-3}$), demonstrating that the model can converge effectively without  additional limitations on learning rates.
+
+
+
+% \textbf{Impact of Tolerance $\delta$ and EMA Decay Rate $\lambda$}.
+% The Fig.~\ref{fig:ema_tor} illustrates 
+% the impact of different tolerance (\(\delta\)) and EMA decay rate (\(\lambda\)) on model performance. The results show that different combinations of  $\delta$ and  $\lambda$ achieve a speedup of 4.61$\times$ (13000 v.s. 60000) to 4.81$\times$ (12450 v.s. 60000)   while maintaining the similar model quality as Adam. 
+% In addition, the interplay between \(\delta\) and \(\lambda\) highlights a trade-off: aggressive smoothing (\(\lambda \uparrow\)) with loose tolerance (\(\delta \uparrow\)) may reduce computational effort, while finer tolerance (\(\delta \downarrow\)) with moderate \(\lambda\) could enhance model quality at the expense of convergence speed. 
+% \begin{figure}[htbp]
+%     % \vspace{-45pt} % Optional: Adjusts vertical spacing to pull the table up
+% % \begin{figure}[htbp]
+%     \centering
+%     \includegraphics[width=1\textwidth]{figures/EMA&Tol_Acc_Pre_Rec_F1_Itr_v4.png}
+% \caption{\label{fig:ema_tor}The impact of   $\delta$ and $\lambda$  over CIFAR-10 by running $1200$ experiments. We use  PASO with $p = 7$ to accelerate Adam with 60000 steps. Darker lines indicate runs with fewer iterations.}
+% % \end{figure}
+% \end{figure}
+
+
+
+
+
+\vspace{-0.4cm}
+\section{Limitations and Future Directions}
+\vspace{-0.3cm}
+While PASO achieves significant runtime acceleration ($2\times$--$7.5\times$), this remains substantially below its step-level speedup (up to $91\times$). Two primary factors limit performance: (1) our constrained GPU resources that inherently restrict maximum acceleration, and (2) our current implementation exists inefficient inter-GPU communication requiring model transfers to pass through a CPU intermediary. These limitations are further exacerbated by unoptimized handling of gradient synchronization, load imbalance, and kernel launch overheads, and so on.
+
+Looking ahead, PASO's efficiency can be substantially improved through: (1) algorithmic refinements like gradient compression to reduce overhead; (2) system-level enhancements such as  collective operations (e.g., NCCL all-reduce) to alleviate bottlenecks. 
+% We expect PASO's time acceleration to approach near-linear scaling w.r.t the available  GPUs.  
+These advancements could position PASO as a promising paradigm for more efficient parallel training, with broader implications for large-scale deep learning.
+
+\vspace{-0.4cm}
+\section{Conclusion}
+\vspace{-0.3cm}
+This paper introduces PASO, a novel framework that accelerates stochastic optimization by reformulating its autoregressive process as a system of triangular nonlinear equations (TNEs), enabling step parallel gradient computation. Theoretically, we prove that the TNE system has a unique solution matching the stochastic optimization's iteration trajectory, and solving it converges as efficiently as or faster than sequential method. Empirically, PASO achieves up to $91\times$ speedup in steps without quality degradation. 
+
+
+% \section*{References}
+% References follow the acknowledgments in the camera-ready paper. Use unnumbered first-level heading for
+% the references. Any choice of citation style is acceptable as long as you are
+% consistent. It is permissible to reduce the font size to \verb+small+ (9 point)
+% when listing the references.
+% Note that the Reference section does not count towards the page limit.
+% \medskip
+
+
+% % {
+% % \small
+
+
+% % [1] Alexander, J.A.\ \& Mozer, M.C.\ (1995) Template-based algorithms for
+% % connectionist rule extraction. In G.\ Tesauro, D.S.\ Touretzky and T.K.\ Leen
+% % (eds.), {\it Advances in Neural Information Processing Systems 7},
+% % pp.\ 609--616. Cambridge, MA: MIT Press.
+
+
+% % [2] Bower, J.M.\ \& Beeman, D.\ (1995) {\it The Book of GENESIS: Exploring
+% %   Realistic Neural Models with the GEneral NEural SImulation System.}  New York:
+% % TELOS/Springer--Verlag.
+
+
+% % [3] Hasselmo, M.E., Schnell, E.\ \& Barkai, E.\ (1995) Dynamics of learning and
+% % recall at excitatory recurrent synapses and cholinergic modulation in rat
+% % hippocampal region CA3. {\it Journal of Neuroscience} {\bf 15}(7):5249-5262.
+% % }
+
+\clearpage
+{\large\sc\raggedright{Ethics \& Reproducibility Statements}}
+
+\noindent \textbf{Ethics Statement.} This work presents a fundamental methodology for accelerating stochastic optimization algorithms. To the best of our knowledge, it does not raise any immediate ethical concerns. The research is theoretical and empirical in nature, based on mathematical analysis and standard benchmark tasks. We do not employ any private or sensitive data. However, we acknowledge that any optimization technology has the potential for dual use. We encourage the community to utilize this work responsibly.
+
+\noindent \textbf{Reproducibility Statement.} We are committed to fostering reproducible research. To this end:
+\begin{itemize}
+    \item The theoretical claims in this paper, including the uniqueness of the solution to the triangular nonlinear equations and the convergence guarantees, are supported by formal proofs provided in  appendix.
+    \item The empirical results are obtained using standard datasets and benchmarks. To ensure reproducibility, we will open-source the complete implementation of the PASO framework, including scripts for all experiments.
+    \item The code package will include detailed documentation, instructions for setting up the computational environment, and scripts to replicate the reported speedup and performance comparisons against sequential baselines.
+    \item All hyperparameters and experimental settings are explicitly documented in the paper's experimental section.
+\end{itemize}
+We believe these measures will enable other researchers to verify our findings and build upon this work.
+
+\bibliography{iclr2026/iclr2026_conference}
+% \bibliographystyle{neurips_2025}
+\bibliographystyle{plainnat}
+% \bibliographystyle{unsrtnat}
+% \bibliography{Ref}
+\clearpage
+\newpage
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+% \addcontentsline{toc}{section}{Appendices} % 
+\etocdepthtag.toc{mtappendix}
+\etocsettagdepth{mtchapter}{none}
+\etocsettagdepth{mtappendix}{subsection}
+{
+  \hypersetup{linkcolor=black}
+  \vspace{8em}
+  \tableofcontents
+}
+
+% \addcontentsline{toc}{section}{Appendix Contents} % 将附录目录添加到主目录
+% \renewcommand{\contentsname}{} % 清除默认目录标题
+% \tableofcontents % 生成目录，仅包含附录部分
+% \tableofcontents
+% \section{Appendix}
+
+% \section{Empirical Analysis of Optimization Trajectory Equivalence}
+% \label{app:trajectory_analysis}
+% In this section, we empirically verify that our proposed Parallel Asynchronous-like Stochastic Optimizer (PASO) closely approximates the optimization trajectory of its sequential counterpart. While our theory suggests this equivalence under certain conditions, this experiment provides practical validation.
+
+% \subsection{Experimental Setup}
+% To investigate the trajectory divergence, we conduct an experiment training a Convolutional Neural Network (CNN) on the CIFAR-10 dataset. We compare two optimization setups:
+% \begin{enumerate}
+%     \item \textbf{Sequential Adam:} The standard Adam optimizer updates the model weights sequentially.
+%     \item \textbf{PASO-Adam:} Our proposed parallel optimizer.
+% \end{enumerate}
+% To ensure a fair and direct comparison, both optimization processes are initialized with the exact same model weights.
+
+% \subsection{Evaluation Metric}
+% To quantify the difference between the two optimization paths, we measure the squared Euclidean distance ($L_2$ norm) between the model weights generated by each method at every training step $t$. This divergence metric, denoted as $d^t$, is calculated as:
+% $$
+% d^t = \|w_{\text{PASO}}^{t} - w_{\text{Sequential}}^{t}\|_2^2
+% $$
+% where $w_{\text{PASO}}^{t}$ and $w_{\text{Sequential}}^{t}$ represent the model parameter vectors at step $t$ for PASO-Adam and sequential Adam, respectively. A small value of $d^t$ indicates that the two optimizers are following nearly identical trajectories.
+
+% \subsection{Results}
+% The calculated divergence $d^t$ at various training steps is presented in Table~\ref{tab:trajectory_diff}. The results clearly show that the divergence remains exceptionally small and stable throughout the entire training process. This provides strong empirical evidence that PASO faithfully reproduces the trajectory of the sequential optimizer while drastically reducing the number of iterations required. This confirms that the acceleration achieved by PASO does not come at the cost of altering the fundamental dynamics of the optimization process.
+
+% \begin{table}[h!]
+% \centering
+% \caption{Squared $L_2$ norm of the difference ($d^t$) between the weights of models trained with PASO-Adam and sequential Adam at different training steps ($t$). The consistently small values demonstrate that the optimization trajectories are nearly identical.}
+% \label{tab:trajectory_diff}
+% \resizebox{\textwidth}{!}{%
+% \begin{tabular}{lccccccccccc}
+% \toprule
+% \textbf{Step ($t$)} & 0 & 500 & 1000 & 1500 & 2000 & 2500 & 3000 & 3500 & 4000 & 4500 & 5000 \\
+% \midrule
+% \textbf{$d^t$} & $1.8 \times 10^{-5}$ & $9.8 \times 10^{-5}$ & $2.2 \times 10^{-4}$ & $3.1 \times 10^{-4}$ & $3.2 \times 10^{-4}$ & $4.6 \times 10^{-4}$ & $5.4 \times 10^{-4}$ & $5.8 \times 10^{-4}$ & $5.9 \times 10^{-4}$ & $6.7 \times 10^{-4}$ & $7.2 \times 10^{-4}$ \\
+% \midrule
+% \textbf{Step ($t$)} & 5500 & 6000 & 6500 & 7000 & 7500 & 8000 & 8500 & 9000 & 9500 & 10000 & \\
+% \midrule
+% \textbf{$d^t$} & $7.3 \times 10^{-4}$ & $9.2 \times 10^{-4}$ & $6.4 \times 10^{-3}$ & $6.5 \times 10^{-3}$ & $7.1 \times 10^{-3}$ & $7.5 \times 10^{-3}$ & $7.8 \times 10^{-3}$ & $8.2 \times 10^{-3}$ & $8.3 \times 10^{-3}$ & $8.6 \times 10^{-3}$ & \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{table}
+
+\section{Use of LLM}
+
+During the preparation of this work, we used Large Language Models (LLMs) to assist with the writing process. The primary uses included polishing and improving the fluency of the text, generating preliminary drafts of proofs, and assisting in the creation and formatting of tables. After using these tools, the author(s) reviewed and edited the content extensively. We take full responsibility for the entire content of this publication, including the ideas, proofs, and presentations ultimately contained in the final manuscript.
+
+\section{More Experimental Details}
+We evaluate PASO over two popular model training tasks, including image classification and text generation model. The results of these experiments demonstrate that PASO enhances the efficiency of autoregressive GD methods by approximately 1.5 times, all while maintaining consistent model quality as measured by metrics like accuracy or perplexity.
+
+
+\subsection{Experiment Settings}
+% \vspace{-0.2cm}
+
+\textbf{Dataset and Model.} 
+We investigate our PASO on both an image classification task and a language modeling task.  For the image task, we use the CIFAR-10 dataset~\citep{cifar10}, a widely recognized benchmark in computer vision. The dataset comprises 60,000 $32 \times 32$ RGB images spanning 10 distinct classes, divided into 50,000 training and 10,000 test samples. The small image size and real-world noise make CIFAR-10 a challenging yet efficient testbed for lightweight models. We evaluate our approach by training a compact Convolutional Neural Network (CNN),  following a standard architecture with convolutional and pooling layers, as shown in Table~\ref{tab:cnn}. Besides,  we train a Vision Transformer (ViT) model~\footnote{https://www.modelscope.cn/models/iic/multi-modal\_clip-vit-large-patch14\_336\_zh} on CIFAR-10.  For the language task, we train  GPT-2 model\footnote{https://github.com/openai/gpt-2} and Llama-3.2-1B\footnote{https://huggingface.co/meta-llama/Llama-3.2-1B} on the WikiText dataset\footnote{https://www.salesforce.com/blog/the-wikitext-long-term-dependency-language-modeling-dataset}, a large-scale corpus of Wikipedia articles preprocessed for language modeling. The dataset is publicly available and commonly used for training and benchmarking autoregressive models like GPT-2. We adopt the standard GPT-2 architecture, leveraging Hugging Face's \texttt{transformers} library for tokenization and training loops. 
+We assess the performance of all methods on 8 NVIDI A100 GPUs. 
+\begin{table}[h]
+\centering
+\caption{CNN Architecture}
+\label{tab:cnn}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Layer Type} & \textbf{Parameter Configuration} \\ \hline
+Conv2D & Input channels 3, output channels 32, kernel size 3$\times$3, padding 1 \\ \hline
+ReLU & Activation function \\ \hline
+MaxPool2D & Pooling kernel 2$\times$2, stride 2 \\ \hline
+Conv2D & Input channels 32, output channels 64, kernel size 3$\times$3, padding 1 \\ \hline
+ReLU & Activation function \\ \hline
+MaxPool2D & Pooling kernel 2$\times$2, stride 2 \\ \hline
+Flatten & Flatten to 64$\times$8$\times$8 vector \\ \hline
+Linear & Input dimension 4096 (64$\times$8$\times$8), output dimension 128 \\ \hline
+ReLU & Activation function \\ \hline
+Linear & Input dimension 128, output dimension 10 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Evaluation Metrics.}
+For the CIFAR-10 dataset, we evaluate the model performance using six standard metrics: accuracy, precision, recall, F1-score, iterations, and wall-clock time. 
+For the WikiText dataset, we evaluate the performance using four standard metrics: accuracy, perplexity, iterations, and wall-clock time. 
+These metrics collectively assess both the effectiveness and efficiency of our PASO. 
+For evaluation of the wall-clock time, we use the \textit{torch.cuda.Event}\footnote{https://pytorch.org/docs/stable/generated/torch.cuda.Event.html} method provided by Pytorch~\citep{paszke2019pytorch}.
+
+\textbf{Algorithms}. 
+We accelerate three widely used optimizers: SGD, Adam, and AdamW. We refer their parallel variants as ParaSGD, ParaAdam, and ParaAdamW, respectively.
+
+
+
+% \textbf{Hyperparameter Settings}. We employ the sweep function in Wandb~\citep{wandb} to investigate the influence of hyperparameters on the model's performance metrics, configuring a hyperparameter sweep with the following search ranges: learning rate sampled logarithmically in $[10^{-6}, 10^{-1}]$, batch size selected discretely from $\{16, 32, 64, 128\}$, window size $P$ drawn from an integer-uniform distribution over $[2,\dots,15]$, threshold sampled uniformly in $[10^{-6},10^{-4}]$, EMA decay rate $\lambda$ sampled uniformly in $[0.8,0.99]$, and adaptivity scheme $\mathcal{A}$ chosen between mean and median operators. 
+% Wandb automatically tracks and visualizes results to facilitate efficient comparison of hyperparameter combinations and identification of the optimal configuration. 
+% The log-uniform and integer-uniform distributions are strategically designed to concentrate search density in regions of higher hyperparameter sensitivity, as supported by preliminary scaling laws.
+% \vspace{-0.3cm}
+
+
+
+
+\subsection{Experiment Results}
+\subsubsection{Empirical Validation of Optimization Trajectory Equivalence}\label{app_sec:Trajectory_Equivalence}
+
+The objective of this study is to verify that the PASO algorithm faithfully reproduces the optimization path of various standard sequential optimizers. The experimental design is as follows:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Model and Task:} We train a CNN on the CIFAR-10 dataset. The total iterations is $10000$ GD steps.
+\item \textbf{Optimizer Comparison:} For each base optimizer (SGD, Adam, AdamW), we conduct two parallel training procedures: one using the standard sequential optimizer and another using its PASO-enhanced version. Critically, all training runs commence from an identical set of randomly initialized weights, learning rate, and batch size to ensure a fair comparison.
+\item \textbf{Evaluation Metric:} At each training step $t$, we compute the squared L2 norm of the difference between the model weight vectors produced by the two methods, defined as:
+
+\[
+d^t = ||w_{\text{PASO}}^{t} - w_{\text{Sequential}}^{t}||^2
+\]
+ 
+where $w_{\text{PASO}}^{t}$ and $w_{\text{Sequential}}^{t}$ represent the model weights obtained by the PASO variant and its standard sequential counterpart at step $t$, respectively. This metric, $d^t$, quantifies the instantaneous deviation between the two optimization trajectories in the parameter space. To provide a comprehensive assessment, we report the mean and variance of $d^t$ across the entire training process for each optimizer.
+\end{itemize}
+
+\textbf{Results and Analysis.} The statistical summary of the trajectory divergence $d^t$ for all optimizers over the complete training process is presented in Table~\ref{tab:trajectory_summary}.
+
+\begin{table}[h!]
+\centering
+\caption{Statistical summary of trajectory divergence ($d^t$) between PASO and sequential optimizers.}
+\label{tab:trajectory_summary}
+\begin{tabular}{lcc}
+\hline
+\textbf{Optimizer} & \textbf{Mean of $d^t$} & \textbf{Variance of $d^t$} \\
+\hline
+SGD and SGD + PASO & $3.14 \times 10^{-6}$ & $6.71 \times 10^{-12}$ \\
+Adam and Adam + PASO & $3.56 \times 10^{-3}$ & $5.75 \times 10^{-6}$ \\
+AdamW and AdamW + PASO & $3.38 \times 10^{-3}$ & $4.70 \times 10^{-6}$ \\
+\hline
+\end{tabular}
+\end{table}
+
+The results demonstrate that for all three optimizers, the mean and variance of the divergence $d^t$ remain exceptionally small throughout the training process.  The consistently minimal values across all optimizers empirically confirm that PASO faithfully reproduces the optimization trajectory of the standard sequential optimizer, regardless of the specific optimization algorithm employed. This high-fidelity replication ensures that the convergence properties and final solution quality of the original optimizer are preserved. Note that while the average L2 norm for Adam and AdamW appear larger than SGD's, they remain highly insignificant when considered in context. For a model with millions of parameters, an average squared L2 norm difference on the order of $10^{-3}$ corresponds to an extremely small per-parameter discrepancy. For example, for a model with $n\approx 5\times10^6$ parameters, this corresponds to a \textit{root mean squared error (RMSE)} per parameter of approximately $\sqrt{3.56 \times 10^{-3} / 5\times10^6} \approx 2.7 \times 10^{-5}$. Consequently, the trajectories of PASO and sequential optimizers are functionally equivalent.
+
+% \subsubsection{Empirical Validation of Optimization Trajectory Equivalence}\label{app_sec:Trajectory_Equivalence}
+% The objective of this study is to verify that PASO-Adam faithfully reproduces the optimization path of the standard Adam optimizer. The experimental design is as follows:
+
+% \begin{itemize}[leftmargin=*]
+%     \item \textbf{Model and Task:} We train a  CNN on the CIFAR-10 dataset.
+
+%     \item \textbf{Optimizer Comparison:} Two optimizers are used for training: the standard Adam optimizer and our proposed PASO-Adam. Critically, both training procedures commence from an identical set of randomly initialized weights to ensure a fair comparison.
+
+%     \item \textbf{Evaluation Metric:} At each training step $t$, we compute the squared L2 norm of the difference between the model weight vectors produced by the two methods, defined as:
+%     \[
+%     d^t = ||w_{\text{PASO}}^{t} - w_{\text{Sequential}}^{t}||^2
+%     \]
+%     where $w_{\text{PASO}}^{t}$ and $w_{\text{Sequential}}^{t}$ represent the model weights obtained by PASO-Adam and the standard sequential Adam optimizer at step $t$, respectively. This metric, $d^t$, quantifies the deviation between the two optimization trajectories in the parameter space.
+% \end{itemize}
+
+% \textbf{Results and Analysis}. Table \ref{tab:divergence} records the values of the weight divergence $d^t$ at various timesteps $t$ throughout the training process.
+% \begin{table}[h!]
+% \centering
+% \caption{Divergence ($d^t$) between PASO-Adam and Sequential Adam weight vectors over 10,000 training steps.}
+% \label{tab:divergence}
+% \begin{tabular}{|l|ccccccc|}
+% \hline
+% \textbf{Step ($t$)} & 0 & 500 & 1000 & 1500 & 2000 & 2500 & 3000 \\
+% \textbf{$d^t$} & 1.7e-05 & 9.2e-05 & 3.2e-04 & 3.4e-04 & 3.5e-04 & 4.7e-04 & 5.6e-04 \\
+% \hline
+% \textbf{Step ($t$)} & 3500 & 4000 & 4500 & 5000 & 5500 & 6000 & 6500 \\
+% \textbf{$d^t$} & 5.8e-04 & 6.1e-04 & 6.7e-04 & 7.2e-04 & 7.3e-04 & 9.2e-04 & 1.1e-03 \\
+% \hline
+% \textbf{Step ($t$)} & 7000 & 7500 & 8000 & 8500 & 9000 & 9500 & 10000 \\
+% \textbf{$d^t$} & 1.3e-03 & 1.5e-03 & 1.7e-03 & 2.2e-03 & 3.0e-03 & 3.1e-03 & 3.3e-03 \\
+% \hline
+% \end{tabular}
+% \end{table}
+
+% The results unequivocally demonstrate that the divergence value $d^t$ remains exceptionally small, on the order of $10^{-5}$ to $10^{-3}$, throughout the entire training process. Although the value exhibits a slight increase as training progresses, its absolute magnitude remains negligible. This empirically confirms that the trajectory produced by PASO-Adam closely mirrors that of the standard sequential Adam.
+
+
+
+
+\subsubsection{Language Modeling Task} 
+\textbf{Complete Training Process.} Figure~\ref{fig_llm_curve}  presents the loss, accuracy, and perplexity curves of ParaSGD, ParaAdam, and ParaAdamW, respectively. We can see that ParaSGD, ParaAdam, and ParaAdamW achieve faster convergence across iterations. For example, for our ParaSGD method (Figure 2a, from top to bottom), both the training loss and perplexity decrease rapidly  after approximately 200 iterations, while  the loss and perplexity of SGD drop  slowly and stabilizes around 1000. The training accuracy of ParaSGD increases quickly, reaching close to 80\% by the 200$th$ iteration. This suggests that our PASO is effective in improving the training efficiency.
+
+
+\begin{figure}[htbp]
+    \begin{minipage}{\linewidth}
+        \centering
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/llm_sgd_loss.png}
+            % (a) Loss Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/llm_adam_loss.png}
+            % (b) Accuracy Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/llm_adamw_loss.png}
+            % (c) Perplexity Curve
+        \end{minipage}
+        
+    \vspace{0.1cm}
+
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/llm_sgd_acc.png}
+            % (a) Loss Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/llm_adam_acc.png}
+            % (b) Accuracy Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/llm_adamw_acc.png}
+            % (c) Perplexity CurveS
+        \end{minipage}
+
+    \vspace{0.1cm}
+
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/llm_sgd_pp.png}
+            (a) ParaSGD
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/llm_adam_pp.png}
+            (b) ParaAdam
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/llm_adamw_pp.png}
+            (c) ParaAdamW
+        \end{minipage}
+        
+    \end{minipage}
+    \vspace{0.5cm}
+     \caption{\label{fig_llm_curve}The loss, accuracy, and perplexity curve of WikiText Task}
+\end{figure}
+
+
+
+\subsubsection{Image Classification Task}
+\label{app:loss_curve}
+\textbf{Complete Training Process.} Figure~\ref{fig_cifar10_curve} shows the training loss and accuracy trajectories for ParaSGD, ParaAdam, and ParaAdamW. All three methods demonstrate accelerated convergence compared to their baseline counterparts. Particularly notable is ParaAdamW (Figure 3c, top to bottom), where the training loss exhibits a sharp decline after approximately 3.5k iterations - in contrast to AdamW's gradual reduction that only stabilizes around 30k iterations. Furthermore, ParaAdamW achieves a training accuracy of nearly 82\% by the 3.5k-th iteration, significantly outperforming AdamW's 69\% accuracy at 30k iterations. These results demonstrate that our PASO framework effectively enhances both training efficiency and model performance metrics.
+\begin{figure}[htbp]
+    \begin{minipage}{\linewidth}
+        \centering
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/cifar_sgd_loss.png}
+            % (a) Loss Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/cifar_adam_loss.png}
+            % (b) Accuracy Curve
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/cifar_adamW_loss.png}
+            % (c) Perplexity Curve
+        \end{minipage}
+        
+    \vspace{0.1cm}
+
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % % \subcaption{Image 13}
+            \includegraphics[width=\linewidth]{figures/cifar_sgd_acc.png}
+            (a) ParaSGD
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 14}
+            \includegraphics[width=\linewidth]{figures/cifar_adam_acc.png}
+            (b) ParaAdam
+        \end{minipage}
+        \begin{minipage}{0.32\linewidth}
+            \centering
+            % \subcaption{Image 15}
+            \includegraphics[width=\linewidth]{figures/cifar_adamW_acc.png}
+            (c) ParaAdamW
+        \end{minipage}
+        
+    \end{minipage}
+    \vspace{0.5cm}
+     \caption{\label{fig_cifar10_curve}The loss and accuracy curve of CIFAR10 Task}
+\end{figure}
+
+
+
+\subsubsection{The Impact of Hyperparameters}
+\label{app:Hyperparameters}
+\textbf{Impact of Tolerance $\delta$ and EMA Decay Rate $\lambda$}.
+The Fig.~\ref{fig:ema_tor} illustrates 
+the impact of different tolerance (\(\delta\)) and EMA decay rate (\(\lambda\)) on model performance. The results show that different combinations of  $\delta$ and  $\lambda$ achieve a speedup of 4.61$\times$ (13000 v.s. 60000) to 4.81$\times$ (12450 v.s. 60000)   while maintaining the similar model quality as Adam. 
+In addition, the interplay between \(\delta\) and \(\lambda\) highlights a trade-off: aggressive smoothing (\(\lambda \uparrow\)) with loose tolerance (\(\delta \uparrow\)) may reduce computational effort, while finer tolerance (\(\delta \downarrow\)) with moderate \(\lambda\) could enhance model quality at the expense of convergence speed. 
+\begin{figure}[htbp]
+    % \vspace{-45pt} % Optional: Adjusts vertical spacing to pull the table up
+% \begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\textwidth]{figures/EMA&Tol_Acc_Pre_Rec_F1_Itr_v4.png}
+\caption{\label{fig:ema_tor}The impact of   $\delta$ and $\lambda$  over CIFAR-10 by running $1200$ experiments. We use  PASO with $p = 7$ to accelerate Adam with 60000 steps. Darker lines indicate runs with fewer iterations.}
+% \end{figure}
+\end{figure}
+
+
+% \textbf{Impact of Learning Rate}. 
+% Figure~\ref{fig:lr_acc} empirically investigates the influence of the learning rate on final model accuracy and convergence speed. The results reveal a distinct trend where both the learning rate and the number of iterations to convergence are critical. The color of each point corresponds to the training iteration at which the final accuracy was recorded, with darker shades (purple) indicating faster convergence and lighter shades (yellow) indicating slower convergence.
+
+% With a small learning rate, such as $2 \times 10^{-4}$, the model achieves only modest accuracy (around 71.5\%). This is attributable to the slow optimization caused by marginal weight updates, which prevents the model from reaching a more optimal solution within the training period. As the learning rate increases, we observe a general improvement in performance. The peak accuracy, approaching 73\%, is achieved with a learning rate of $1 \times 10^{-2}$. Notably, these top-performing models (dark purple points) also converge significantly faster, requiring fewer iterations than models trained with smaller learning rates. For instance, the yellow point at a learning rate of $5 \times 10^{-3}$ shows that a slower convergence does not necessarily yield better results.
+
+% This analysis highlights that our method is robust across a practical range of learning rates, approximately from $4 \times 10^{-4}$ to $1 \times 10^{-2}$. The results suggest that a sufficiently large learning rate not only accelerates training but also helps in achieving higher final accuracy. These fixed learning rates are comparable to those used in standard optimizers (e.g., Adam's default of $1 \times 10^{-3}$), demonstrating the model's ability to converge effectively without requiring complex learning rate schedules.
+
+% \begin{figure}[h!]
+%     \centering
+%     % In your actual document, you would use a path like this:
+%     % \includegraphics[width=0.9\textwidth]{figures/Learning_rate_Iter_Acc.png}
+%     \includegraphics[width=1\textwidth]{iclr2026/figures/Learning_rate_Iter_Acc.png}
+%     \caption{The impact of the learning rate on the final test accuracy for CIFAR-10. The total sequential GD steps are 10000. The x-axis represents the learning rate on a logarithmic scale. The y-axis shows the final test accuracy. The color of each point indicates the number of training iterations required to reach that accuracy, as shown by the color bar at the top (purple: fewer iterations, yellow: more iterations).}
+%     \label{fig:lr_acc}
+% \end{figure}
+
+In summary, these new parameters do not require extensive tuning and are quite intuitive in selection:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Tolerance ($\delta$)}: This parameter controls the convergence precision of the fixed-point iteration. Manually setting this could be tedious. For this reason, we employ an adaptive tolerance schedule. The tolerance starts loose and automatically tightens as training progresses. This makes the method robust and largely removes $\delta$ from the list of parameters requiring manual tuning.
+    \item \textbf{EMA Decay Rate ($\lambda$)}: This is used within our adaptive tolerance schedule. Like most EMA parameters in deep learning (e.g., in batch normalization or Adam), it is not highly sensitive. 
+    \item \textbf{Window Size ($p$)}: This is less of a hyperparameter and more of a hardware configuration parameter. For good efficiency, $p$ can be simply set as the number of available  processors. 
+\end{itemize}
+
+
+
+
+% Therefore, we argue that this introduces a minimal tuning burden, especially compared to the complexities of tuning learning rate schedules for large-batch training.
+
+
+% \textbf{Impact of the Window Size $P$}. 
+% The experimental results in Figure \ref{fig_impact_p} for CIFAR-10 demonstrate a slight decline in performance metrics-precision, recall, F1-score, and accuracy-as the window size \( P \) decreases from 19 to 1. This is because we do not select the best tolerance and EMA decay rate, and a tighter tolerance can ensure the metric does not decline. The iteration count  decreases with larger window sizes, ranging from 60,000 at \( P = 1 \) to 5000 at \( P = 19 \). This suggests that larger window sizes may contribute to more stable training iterations and better overall performance, though the differences in metrics are relatively marginal, with less than a 1.2\% variation across the range of \( P \) values.
+
+% For GPT-2, the impact of window size \( P \) on accuracy and perplexity is less pronounced but still observable. Accuracy remains relatively stable, fluctuating between 0.8735 and 0.8665 as \( P \) decreases from 14 to 2, with minor variations. Perplexity shows a clearer trend, improving from 3.8 to 2.2 as the window size shrinks, indicating better model confidence in predictions with smaller \( P \). The iteration count and wall clock time decrease significantly with smaller window sizes, suggesting faster convergence. This implies that while smaller window sizes may slightly compromise accuracy, they offer computational efficiency and improved perplexity, which could be advantageous in resource-constrained scenarios.
+% \begin{figure}[htbp]
+%     \begin{minipage}{\linewidth}
+%         \centering
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % % \subcaption{Image 13}
+%             \includegraphics[width=\linewidth]{figures/cifar_p.png}
+%             (a) CIFAR-10 task
+%         \end{minipage}
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % \subcaption{Image 15}
+%             \includegraphics[width=\linewidth]{figures/llm_p.png}
+%             (b) GPT-2 task
+%         \end{minipage}
+%     \end{minipage}
+%     \caption{\label{fig_impact_p}The impact of $P$ on CIFAR-10 and GPT-2. }
+% \end{figure}
+
+
+
+% \textbf{CIFAR-10 Task}.
+% Figure \ref{fig:CIIFAR10_PandIter} shows the variation of the parameter P and the corresponding number of iterations aligns with theoretical expectations, achieving a multi-fold reduction in the iteration count. On most devices, setting P to a value within the range of 6 to 8 is generally sufficient to obtain good performance.  \par
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=0.75\linewidth]{figures/CIIFAR10_PandIter.png}
+%     \caption{Window size and Iteration(10000 iterations for serial)}
+%     \label{fig:CIIFAR10_PandIter}
+% \end{figure}
+
+% \textbf{Impact of Hyperparameter Combinations}. 
+% Figure~\ref{fig_impact_cifar_hyper} illustrates the influence of various hyperparameters on the performance metric during the acceleration of 60000 steps of SGD, Adam, and AdamW. The results reveal that the maximum number of iterations remains around 5000 (significantly fewer than 60000), indicating that the tested hyperparameters have minimal impact on the speedup efficiency of our parallelization methods. This suggests that the proposed approach maintains robust performance across different hyperparameter configurations.
+
+% Figure \ref{CIIFAR10_comprehensive} shows that by fine-tuning the learning rate within a narrow range and setting the EMA decayrate to a value greater than 0.9, a significant reduction in the number of iterations can be achieved with negligible degradation in test performance. 
+% As shown in the figure \ref{CIFAR10_lr_acc}, under parallel conditions, learning rates between 5e-4 and 2e-3 yield good final performance. 
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=0.75\linewidth]{figures/CIFAR10_lr_acc.png}
+%     \caption{Learning rate and accuracy on CIFAR10 task}
+%     \label{CIFAR10_lr_acc}
+% \end{figure}
+
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=0.75\linewidth]{figures/CIIFAR10_comprehensive.png}
+%     \caption{Fine-tuning the learning rate and EMA}
+%     \label{CIIFAR10_comprehensive}
+% \end{figure}
+
+% \begin{figure}[htbp]
+%     \begin{minipage}{\linewidth}
+%         \centering
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % % \subcaption{Image 13}
+%             \includegraphics[width=\linewidth]{figures/cifar_sgd_hyper.png}
+%             (a) ParaSGD (PASO+SGD)
+%         \end{minipage}
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % \subcaption{Image 15}
+%             \includegraphics[width=\linewidth]{figures/cifar_adam_hyper.png}
+%             (b) ParaAdam (PASO+Adam)
+%         \end{minipage}
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % \subcaption{Image 15}
+%             \includegraphics[width=\linewidth]{figures/cifar_adamw_hyper.png}
+%             (c) ParaAdamW (PASO+AdamW)          
+%         \end{minipage}
+%     \end{minipage}
+%     \vspace{0.5cm}
+%     \caption{\label{fig_impact_cifar_hyper}Impact of hyperparameters on the performance metric of CIFAR-10 task during 10000-step  acceleration. Notably, the maximum iterations remain below 5000 (much less than 10000), demonstrating that the hyperparameters have a negligible effect on the speedup efficiency of our parallel approaches.}
+% \end{figure}
+
+% \textbf{Impact of Hyperparameter Combinations}. 
+% Figure \ref{fig_impact_gpt_hyper} illustrates the influence of various hyperparameters on the performance metric during the acceleration of 1000 steps of SGD, Adam, and AdamW. The results reveal that the maximum number of iterations remains around 230 (significantly fewer than 1000), indicating that the tested hyperparameters have minimal impact on the speedup efficiency of our parallelization methods. This suggests that the proposed approach maintains robust performance across different hyperparameter configurations.
+
+
+% \begin{figure}[htbp]
+%     \begin{minipage}{\linewidth}
+%         \centering
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % % \subcaption{Image 13}
+%             \includegraphics[width=\linewidth]{figures/llm_sgd_hyper.png}
+%             (a) ParaSGD (PASO+SGD)
+%         \end{minipage}
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % \subcaption{Image 15}
+%             \includegraphics[width=\linewidth]{figures/llm_adam_hyper.png}
+%             (b) ParaAdam (PASO+Adam)
+%         \end{minipage}
+%         \begin{minipage}{0.95\linewidth}
+%             \centering
+%             % \subcaption{Image 15}
+%             \includegraphics[width=\linewidth]{figures/llm_adamw_hyper.png}
+%             (c) ParaAdamW (PASO+AdamW)          
+%         \end{minipage}
+%     \end{minipage}
+%     \caption{\label{fig_impact_gpt_hyper}Impact of hyperparameters on the performance metric of GPT-2 task during 1000-step  acceleration. Notably, the maximum iterations remain below 230 (much less than 1000), demonstrating that the hyperparameters have a negligible effect on the speedup efficiency of our parallel approaches.}
+% \end{figure}
+
+
+
+\section{Detailed Comparative Analysis}
+\label{app:speedup_analysis}
+
+In this section, we provide the detailed derivations and analyses of computational cost, memory footprint, and speedup ratios for sequential SGD and various parallel training methods, as summarized in Table~\ref{tab:speedup_comparison_main}.
+
+\subsection{Computational Cost and Memory Footprint Analysis}
+To quantify the overhead of PASO, let $T$ be the total number of training steps for a standard sequential method. PASO converges in $K$ iterations, with each iteration performing $p$ parallel gradient computations (where $p$ is the window size). The total maximum number of gradient computations is therefore $p \times K$. Since the sliding window size $p$ will gradually decrease at the end of the convergence, the practical number for gradients computations (we denote it as $G$) is less than $pK$.
+We define the \textit{computational cost ratio} $m$ as the ratio of PASO's total gradient computations to that of the sequential method:
+$$m = \frac{pK}{T}$$
+Empirically, as shown in Figure~\ref{fig:m_ratio_appendix}, our experiments for $T=10000$ demonstrate that $m$ remains close to 1 and does not exceed 1.5 across various window sizes. This indicates that PASO introduces minimal computational overhead.
+
+In terms of memory, PASO requires storing only one model and one optimizer state per device. This is identical to the requirements of sequential, model, and pipeline parallelism. It is also significantly more memory-efficient than data parallelism, where the storage for optimizer states typically scales with the number of devices $N$.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Speedup_Ratio.png}
+    \caption{Empirical evaluation of the computational cost ratio $m = pK/T$ for $T=10000$ across different window sizes $p$. Since the sliding window size $p$ will gradually decrease at the end of the convergence, the actual total number of gradient computations (we denote it as $G$) is marginally less than $pK$.
+    The ratio remains close to 1, indicating minimal computational overhead.}
+    \label{fig:m_ratio_appendix}
+\end{figure}
+
+
+\subsection{Speedup Ratio Analysis}
+\label{app:speedup_analysis}
+
+In this section, we provide a detailed derivation of the speedup ratios for sequential SGD and various parallel training methods, as summarized in Table~\ref{tab:speedup_comparison_main}.
+
+\subsubsection{Definitions and Assumptions}
+For a clear and consistent analysis, we define the following notations:
+\begin{itemize}
+    \item $N$: The number of GPUs, assumed to have identical compute capabilities.
+    \item $T$: The total number of iterations (steps) required for a model to converge using sequential SGD.
+    \item $t_{\text{comp}}$: The time required for the computation within one SGD step on a single GPU. For simplicity, we normalize this to $t_{\text{step}}$ in some contexts.
+    \item $t_{\text{comm}}$: The time required for necessary communication (e.g., synchronization) per parallel step.
+    \item $\alpha \triangleq t_{\text{comm}}/t_{\text{comp}}$: The communication-to-computation ratio, a critical factor in parallel efficiency.
+\end{itemize}
+The \textbf{speedup ratio} $S$ for any parallel method is defined as the ratio of the total time taken by sequential SGD to the time taken by the parallel method:
+$$S = \frac{T_{\text{sequential}}}{T_{\text{parallel}}}$$
+
+\subsubsection{Baseline: Sequential SGD}
+The total time for sequential SGD is the product of the number of iterations and the time per iteration.
+$$T_{\text{sequential}} = T \times t_{\text{comp}}$$
+By definition, its speedup ratio is $S_{\text{sequential}} = 1$.
+
+\subsubsection{Data-Parallel Training}
+In synchronous data parallelism, the computation for each step is divided across $N$ GPUs, but a communication step (e.g., AllReduce) is required to synchronize gradients. The time for one parallel step is $(\frac{t_{\text{comp}}}{N} + t_{\text{comm}})$.
+The total time over $T$ iterations is:
+$$T_{\text{data}} = T \times \left( \frac{t_{\text{comp}}}{N} + t_{\text{comm}} \right)$$
+The speedup ratio is therefore:
+$$S_{\text{data}} = \frac{T \cdot t_{\text{comp}}}{T \left( \frac{t_{\text{comp}}}{N} + t_{\text{comm}} \right)} = \frac{t_{\text{comp}}}{\frac{t_{\text{comp}}}{N} + \alpha \cdot t_{\text{comp}}} = \frac{1}{\frac{1}{N} + \alpha} = \frac{N}{1 + \alpha N}$$
+In the communication-bound limit ($N \to \infty$), the speedup is capped at $S_{\text{data}} \to 1/\alpha$.
+
+\subsubsection{Model-Parallel and Pipeline-Parallel Training}
+For both model and pipeline parallelism, assuming perfect load balancing and ignoring initial pipeline-filling latency for large $T$, the computation is similarly distributed. The model is partitioned across $N$ devices, and each device computes its part in parallel, followed by communication of activations or gradients between devices.
+The total time can be approximated as:
+$$T_{\text{model/pipeline}} \approx T \times \left( \frac{t_{\text{comp}}}{N} + t_{\text{comm}} \right)$$
+This yields the same speedup ratio form as data parallelism:
+$$S_{\text{model/pipeline}} = \frac{N}{1 + \alpha N}$$
+Practical limitations such as load imbalance or pipeline bubble latency often result in a lower effective speedup.
+
+\subsubsection{Step-Parallel Training (PASO)}
+PASO operates differently by parallelizing across training steps. We introduce three key parameters for its analysis:
+\begin{itemize}
+    \item $p$: The window size, representing the number of gradient steps computed in parallel.
+    \item $K$: The total number of PASO iterations required for convergence.
+    \item $m$: The computational cost ratio, $m = \frac{pK}{T}$, where $pK$ is the total number of gradient computations performed by PASO. Our empirical results show $m \approx 1$.
+\end{itemize}
+In each of the $K$ iterations, $p$ gradients are computed in parallel across $N$ devices. The computation time per iteration is $\frac{p \cdot t_{\text{comp}}}{N}$, followed by a single communication phase $t_{\text{comm}}$. The total time for PASO is:
+$$T_{\text{PASO}} = K \times \left( \frac{p \cdot t_{\text{comp}}}{N} + t_{\text{comm}} \right)$$
+To compare this with sequential training over $T$ steps, we substitute $K = \frac{mT}{p}$:
+$$T_{\text{PASO}} = \frac{mT}{p} \left( \frac{p \cdot t_{\text{comp}}}{N} + t_{\text{comm}} \right) = mT \left( \frac{t_{\text{comp}}}{N} + \frac{t_{\text{comm}}}{p} \right)$$
+The speedup ratio for PASO is then:
+$$S_{\text{PASO}} = \frac{T \cdot t_{\text{comp}}}{mT \left( \frac{t_{\text{comp}}}{N} + \frac{t_{\text{comm}}}{p} \right)} = \frac{t_{\text{comp}}}{m \left( \frac{t_{\text{comp}}}{N} + \frac{\alpha \cdot t_{\text{comp}}}{p} \right)} = \frac{1}{m \left(\frac{1}{N} + \frac{\alpha}{p}\right)} = \frac{N}{m(1 + \alpha N/p)}$$
+Since our experiments show $m \approx 1$ (see Figure~\ref{fig:m_ratio_appendix}), the speedup is approximately:
+$$S_{\text{PASO}} \approx \frac{N}{1 + \alpha N/p}$$
+As $p > 1$, it follows that $1 + \alpha N/p < 1 + \alpha N$, which confirms that $S_{\text{PASO}} > S_{\text{data/model/pipeline}}$. In the communication-bound limit ($N \to \infty$), the speedup is capped at $S_{\text{PASO}} \to p/(m\alpha)$, which is $p$ times higher than other methods.
+
+
+
+
+% \section{Impact of Tolerance $\delta$ and EMA Decay Rate $\lambda$}
+% \begin{figure}[htbp]
+%     % \vspace{-45pt} % Optional: Adjusts vertical spacing to pull the table up
+% % \begin{figure}[htbp]
+%     \centering
+%     \includegraphics[width=1\textwidth]{figures/EMA&Tol_Acc_Pre_Rec_F1_Itr_v4.png}
+% \caption{\label{fig:ema_tor}The impact of   $\delta$ and $\lambda$  over CIFAR-10 by running $1200$ experiments. We use  PASO with $p = 7$ to accelerate Adam with 60000 steps. Darker lines indicate runs with fewer iterations.}
+% % \end{figure}
+% \end{figure}
+
+% The Fig.~\ref{fig:ema_tor} illustrates 
+% the impact of different tolerance (\(\delta\)) and EMA decay rate (\(\lambda\)) on model performance. The results show that different combinations of  $\delta$ and  $\lambda$ achieve a speedup of 4.61$\times$ (13000 v.s. 60000) to 4.81$\times$ (12450 v.s. 60000)   while maintaining the similar model quality as Adam. 
+% In addition, the interplay between \(\delta\) and \(\lambda\) highlights a trade-off: aggressive smoothing (\(\lambda \uparrow\)) with loose tolerance (\(\delta \uparrow\)) may reduce computational effort, while finer tolerance (\(\delta \downarrow\)) with moderate \(\lambda\) could enhance model quality at the expense of convergence speed. 
+
+\section{Notation Summary}
+\begin{table}[h]
+\centering
+\caption{Summary of Notations}
+\label{tab:notations}
+\begin{tabular}{ll}
+\toprule
+\textbf{Notation} & \textbf{Description} \\
+\midrule
+$T$ & Total number of gradient descent steps \\
+$t$ & Current step index, $t \in \{0,1,\dots,T-1\}$ \\
+$w_t$ & Model parameters at step $t$ \\
+$\eta_t$ & Learning rate at step $t$ \\
+$\zeta_t$ & Mini-batch of data used at step $t$ \\
+$\mathcal{L}(w_t, \zeta_t)$ & Loss function evaluated at parameters $w_t$ with data $\zeta_t$ \\
+$\nabla_{w_t} \mathcal{L}(w_t, \zeta_t)$ & Gradient of loss with respect to $w_t$ \\
+$g_t(\cdot)$ & Update function specific to optimizer (SGD, Adam, etc.) \\
+$r$ & The number of history weights used for existing autoregressive optimizers \\
+$F_t(\cdot)$ & Nonlinear equation function at step $t$ \\
+$\hat{w}_t^{(k)}$ & Estimated parameters at step $t$, iteration $k$ \\
+$K$ & Number of parallel iterations \\
+$p$ & Sliding window size for parallel computation \\
+$\delta$ & Convergence tolerance threshold \\
+$\lambda$ & Exponential moving average decay rate \\
+$n$ & Dimension of model parameters \\
+$L$ & Lipschitz constant for gradients \\
+$M$ & Bound on gradient norm \\
+$\epsilon$ & Small constant for numerical stability \\
+$\beta_1, \beta_2$ & Exponential decay rates for  optimizer with momentum \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Update Rules for Various Optimizers in Definition~\ref{def:TNEs}}
+\label{apx:update_rules}
+% \section*{Appendix A: Update Rules for Various Optimizers in Definition 2}
+\textbf{Adam Optimizer}. 
+At each iteration $t$, Adam computes the gradient of the loss function $\mathcal{L}(w_t, \zeta_t)$ over the mini-batch $\zeta_t$. It then updates two key quantities: the first moment $m_t$, which captures the momentum of the gradients, and the second moment $v_t$, which estimates the variability of the gradients. These updates are governed by exponential moving averages:
+
+\begin{equation}\label{eq:adam_mt_vt}
+m_{t} = \beta_1 m_{t-1} + (1 - \beta_1) \nabla_{w_{t-1}} \mathcal{L}(w_{t-1}, \zeta_{t-1}),
+v_{t} = \beta_2 v_{t-1} + (1 - \beta_2) (\nabla_{w_{t-1}} \mathcal{L}(w_{t-1}, \zeta_{t-1}))^2,
+\end{equation}
+
+where $\beta_1$ and $\beta_2$ are hyperparameters controlling the decay rates of the moving averages. Adam applies bias correction to the moments:
+\begin{equation}\label{eq:adam_hat_mt_vt}
+\hat{m}_t = \frac{m_t}{1 - \beta_1^t}, \hat{v}_t = \frac{v_t}{1 - \beta_2^t}.
+\end{equation}
+The model parameters $w$ are then updated using the following rule:
+\begin{equation}\label{eq:adam_update_rule}
+w_{t} = w_{t-1} - \eta_{t-1} \frac{\hat{m}_{t}}{\sqrt{\hat{v}_{t}+ \epsilon}},
+\end{equation}
+where the division is defined as the Hadamard division, and $\epsilon$ is a small constant. 
+
+For Adam , reformulating Eq.~\eqref{eq:adam_mt_vt} produces  the formulas of their general terms:
+\begin{equation}\label{eq:adam_mt_vt_general}
+m_t = (1 - \beta_1) \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau),
+v_t = (1 - \beta_2) \sum_{\tau=0}^{t-1} \beta_2^{t-1-\tau} \left(\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\right)^2.
+\end{equation}
+Through the combination of Eq.~\eqref{eq:adam_hat_mt_vt}, Eq.~\eqref{eq:adam_update_rule},  and Eq.~\eqref{eq:adam_mt_vt_general}, we derive $g_{t-1}$ with $r=t$ for Adam as follows:
+\begin{equation}
+    \label{eq:Adam_gt}
+    g_{t-1}(w_{t-1},\cdots,w_{0};\zeta_{t-1},\cdots,\zeta_{0}) = \frac{\frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)}{\sqrt{\frac{(1 - \beta_2) \sum_{\tau=0}^{t-1} \beta_2^{t-1-\tau} \left(\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\right)^2}{1 - \beta_2^t} + \epsilon}}.
+\end{equation}
+
+
+
+\textbf{AdamW Optimizer}.
+The explicit form of \( g_\tau \) for AdamW is derived by decoupling weight decay from the Adam update rule. Let \( r = \tau \), then:
+\[
+g_{\tau}(w_{\tau}, \ldots, w_{0}; \zeta_{\tau}, \ldots, \zeta_{0}) = \frac{\frac{1 - \beta_1}{1 - \beta_1^{\tau+1}} \sum_{k=0}^{\tau} \beta_1^{\tau - k} \nabla_{w_k} \mathcal{L}(w_k, \zeta_k)}{\sqrt{\frac{(1 - \beta_2)}{1 - \beta_2^{\tau+1}} \sum_{k=0}^{\tau} \beta_2^{\tau - k} \left(\nabla_{w_k} \mathcal{L}(w_k, \zeta_k)\right)^2 + \epsilon} } + \lambda w_{\tau},
+\]
+where \( \lambda \) is the weight decay coefficient. The term \( \lambda w_{\tau} \) is explicitly added to the original Adam update, independent of gradient history.
+
+\textbf{Adagrad Optimizer}.
+For Adagrad, the update function \( g_\tau \) is defined using the explicit sum of squared gradients up to iteration \( \tau \):
+\[
+g_{\tau}(w_{\tau}, \ldots, w_{0}; \zeta_{\tau}, \ldots, \zeta_{0}) = \frac{\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)}{\sqrt{\sum_{k=0}^{\tau} \left(\nabla_{w_k} \mathcal{L}(w_k, \zeta_k)\right)^2 + \epsilon}}.
+\]
+Here, the denominator is the square root of the \textit{non-decaying cumulative sum} of all historical squared gradients. $\epsilon$ is a small constant added for numerical stability.
+
+\textbf{SAM Optimizer}.
+The explicit form of \( g_\tau \) for SAM (Sharpness-Aware Minimization) involves computing the gradient at a perturbed point. Here in SAM \( r = 1 \), then:
+\[
+g_{\tau}(w_{\tau}; \zeta_{\tau}) = \nabla_{w_\tau + \varepsilon_\tau} \mathcal{L}(w_\tau + \varepsilon_\tau, \zeta_\tau),
+\]
+where the perturbation \( \varepsilon_\tau \) is defined as:
+\[
+\varepsilon_\tau = \rho \cdot \frac{\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)}{\|\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\|_2 + \delta}.
+\]
+Substituting the expression for \( \varepsilon_\tau \) into the gradient formula, we get:
+\[
+g_{\tau}(w_{\tau}; \zeta_{\tau}) = \nabla_{w_\tau} \mathcal{L}\left(w_\tau + \rho \cdot \frac{\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)}{\|\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\|_2 + \epsilon}, \zeta_\tau\right).
+\]
+
+This formulation explicitly shows SAM computes the gradient at a point that is perturbed in the direction of steepest ascent within a neighborhood of radius \( \rho \), seeking parameters that are robust to adversarial perturbations. Here, \( \rho \) is the perturbation radius that controls the magnitude of the perturbation, and \( \epsilon \) is a small constant added for numerical stability.
+
+
+\section{Proof of Proposition~\ref{thm:UnbiasedEstimation}}
+\label{apx:proof_UnbiasedEstimation}
+We begin by showing that the function  
+$F_{t-1}(\hat{w}_0,\cdots,\hat{w}_{t-1};\zeta_0, \dots, \zeta_{t-1})$ has a unique set of solutions.  Assume there exist two distinct solutions, $A_0,\cdots,A_{T}$ and $B_0,\cdots,B_{T}$. For all $t \in \{0, T\}$, these solutions must satisfy:  
+\begin{equation}  
+    \label{eq:proposition_B_conditions}  
+    \begin{cases}  
+        A_t = F_{t-1}(A_0,\cdots,A_{t-1};\zeta_0, \dots, \zeta_{t-1}) \\  
+        B_t = F_{t-1}(B_0,\cdots,B_{t-1};\zeta_0, \dots, \zeta_{t-1}).  
+    \end{cases}  
+\end{equation}  
+
+By mathematical induction, suppose $A_\tau = B_\tau$ for $0 \leq \tau \leq t$. Then,  
+\begin{equation}  
+    \label{eq:proposition_B_onlyroot}  
+    A_{t+1} = F_{t}(A_0,\cdots,A_{t};\zeta_0, \dots, \zeta_{t}) = F_{t}(B_0,\cdots,B_{t};\zeta_0, \dots, \zeta_{t}) = B_{t+1},  
+\end{equation}  
+which implies $A_0,\cdots,A_T$ and $B_0,\cdots,B_T$ are identical. Thus, the solution is unique.  
+
+ 
+Next, we show that the solution of the triangular nonlinear equation system is an unbiased estimator for the autoregressive gradient descent process.  From Eq.~\eqref{eq:AR_on_def}, the expectation of the autoregressive GD process is:  
+\begin{equation}  
+    \label{eq:proposition_B_unbias_induction}  
+    \begin{aligned}  
+        E[w_t] &= E[F_{t-1}(w_0,\cdots,w_{t-1};\zeta_0, \cdots, \zeta_{t-1})] \\  
+               &= E[w_0] - \sum_{\tau=0}^{t-1} E\left[\eta_{\tau} g_{\tau}(w_{\tau}, \dots, w_{\tau-r+1}; \zeta_{\tau}, \dots, \zeta_{\tau-r+1})\right].  
+    \end{aligned}  
+\end{equation}  
+
+For the triangular NE system, we have:  
+\begin{equation}  
+    \label{eq:proposition_B_unbias_NEs}  
+    \begin{aligned}  
+        E[\hat{w}_t] &= E[F_{t-1}(\hat{w}_0,\cdots,\hat{w}_{t-1};\zeta_0, \dots, \zeta_{t-1})] \\  
+        &= E[\hat{w}_0] - E\left[\sum_{\tau=0}^{t-1} \eta_\tau g_\tau(\hat{w}_{\tau}, \dots, \hat{w}_{\tau-r+1}; \zeta_{\tau}, \dots, \zeta_{\tau-r+1})\right].  
+    \end{aligned}  
+\end{equation}  
+
+Since $w_0$ and $\hat{w}_0$ follow the same distribution, and $\eta_t$ and the mini-batches $\zeta_t$ are identical across all time steps, it follows that:  
+$$E[\hat{w}_t] = E[w_t], \quad \forall \, 0 \leq t \leq T.$$  
+
+\section{Proof of Convergence for Fixed-Point Iteration in Proposition~\ref{thm:ContractionMapping}}
+\label{apx:proof_ContractionMapping}
+\subsection{Assumptions and Lemmas}
+To give the proof, we first state  the underlying assumptions and lemmas used:
+\begin{assumption}\label{assp:Lpsz}
+The gradient $\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)$ is $L$-Lipschitz continuous:
+    \begin{equation}
+        \|\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau) - \nabla_{w_\tau} \mathcal{L}(x_\tau, \zeta_\tau)\| \leq L \|w_\tau - x_\tau\|.
+    \end{equation}
+\end{assumption}
+
+
+ \begin{assumption}\label{assp:bounded_gradient}
+The gradient norm is bounded:
+    \begin{equation}
+        \|\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\| \leq M.
+    \end{equation}
+This implies bounded model weights $w_\tau$. For example, consider the simply quadratic loss $\mathcal{L}(w, \zeta) = w^2$ (with $w \in \mathbb{R}$ independent of $\zeta$). Here:
+\begin{align*}
+\nabla_w \mathcal{L} = 2w, \quad \text{so} \quad |\nabla_w \mathcal{L}| = |2w|.
+\end{align*}
+The bounded gradient condition $|2w| \leq M$ directly implies $|w| \leq M/2$, proving $w$ is constrained to a compact set.
+\end{assumption}
+
+% \begin{lemma}[Banach Fixed Point Theorem]\label{lemma:BanachFPTheorem}
+% Let $(\mathcal{M}, d)$ be a non-empty complete metric space. If a mapping $T \colon \mathcal{M} \to \mathcal{M}$ is a contraction, i.e., there exists a constant $0 \leq \rho < 1$ such that
+% \[
+% d(Tx, Ty) \leq \rho \, d(x, y) \quad \text{for all } x, y \in \mathcal{M},
+% \]
+% then $T$ has a unique fixed point $x^* \in \mathcal{M}$ (meaning $Tx^* = x^*$). Moreover, for any initial point $x_0 \in \mathcal{M}$, the sequence $\{x^{(k)}\}_{k=0}^{K}$ defined by $x^{(k+1)} = Tx^{(k)}$ converges to $x^*$.
+% \end{lemma}
+% \begin{proof}
+% As the Banach Fixed Point Theorem is a classical result, we omit its proof and refer the reader to the original work of \citet{banach1922operations}.
+% \end{proof}
+
+
+\begin{lemma}\label{lemma:MVT}
+If $U,V\in\mathbb R^{n\times t}$ satisfy $U_{ij},V_{ij}\ge\mu$ for all $i,j$, then
+
+$$
+\|\sqrt{U}-\sqrt{V}\|_F
+\;\le\;
+\frac{1}{2\sqrt{\mu}}\;\|U-V\|_F,
+$$
+
+where the square‐root is taken element‐wise.
+\end{lemma}
+\begin{proof}
+For any scalars $a,b\ge\mu>0$,
+
+$$
+\bigl|\sqrt{a}-\sqrt{b}\bigr|
+=\frac{|a-b|}{\sqrt{a}+\sqrt{b}}
+\;\le\;\frac{|a-b|}{2\sqrt{\mu}},
+$$
+
+because $\sqrt{a}+\sqrt{b}\ge 2\sqrt{\mu}$. 
+
+Applying this entrywise with $a=U_{ij}$ and $b=V_{ij}$ yields
+
+$$
+\bigl|\sqrt{U_{ij}}-\sqrt{V_{ij}}\bigr|
+\;\le\;\frac{1}{2\sqrt{\mu}}\;|U_{ij}-V_{ij}|\qquad(\forall\,i,j).
+$$
+
+Squaring and summing over $(i,j)$,
+
+$$
+\sum_{i,j}\bigl(\sqrt{U_{ij}}-\sqrt{V_{ij}}\bigr)^{2}
+\;\le\;\frac{1}{4\mu}\sum_{i,j}(U_{ij}-V_{ij})^{2}.
+$$
+
+The left–hand side equals $\|\sqrt{U}-\sqrt{V}\|_{F}^{2}$ and the right–hand side equals $\tfrac{1}{4\mu}\|U-V\|_{F}^{2}$. 
+
+Taking square roots gives
+
+$$
+\|\sqrt{U}-\sqrt{V}\|_{F}\;\le\;\frac{1}{2\sqrt{\mu}}\;\|U-V\|_{F},
+$$
+
+\end{proof}
+
+\subsection{Problem Restatement}
+\textbf{Notation.} We denote the collection of weights up to time $\tau$ as $W_\tau = [\hat{w}_0, \dots, \hat{w}_\tau]$ and  note $W_{T-1} = [\hat{w}_0, \dots, \hat{w}_{T-1}]$ as $W$. 
+The norm $\|\cdot\|$ is the Frobenius norm. For model weights $w \in \R^n$ with $n > 1$, multiplication and division are element-wise (Hadamard product and division).
+
+\begin{definition}[Iterative Mapping]\label{def:FPI_SYSTEM}
+Let the iterative mapping $\mathcal{H}: \mathbb{R}^{n\times T} \to \mathbb{R}^{n\times T}$ ($T$ components)  be defined as follows for a sequence of model weights $W = [\hat{w}_0, \hat{w}_1, \dots, \hat{w}_{T-1}]$:
+\begin{equation}\label{eq:mathcal_F}
+\mathcal{H}(\hat{w}_0, \cdots, \hat{w}_{T-1}) = 
+\begin{cases}
+\hat{w}_0 = w_0^{seq}, \\
+F_0(\hat{w}_0; \zeta_0), \\
+F_1(\hat{w}_0, \hat{w}_1; \zeta_0, \zeta_1), \\
+\cdots, \\
+F_{T-1}(\hat{w}_0, \cdots, \hat{w}_{T-1}; \zeta_0, \dots, \zeta_{T-1}),
+\end{cases}
+\end{equation}
+where $w_0^{seq}$ denotes the initialized model for the sequential gradient descent and  each sub-mapping $F_{t-1}$ is of the form:
+\begin{equation}
+F_{t-1}(\hat{w}_0,\cdots,\hat{w}_{t-1}) = \hat{w}_0 - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(\hat{w}_{\tau}, \dots, \hat{w}_{0}).
+\end{equation}
+The fixed-point iteration is thus defined by the sequence $W^k = \Hcal(W^{k-1})$.
+\end{definition}
+
+\begin{definition}[Autoregressive Gradient Descent Trajectory]
+The target fixed point, denoted by $W^{seq} = [w_0^{seq}, w_1^{seq}, \dots, w_{T-1}^{seq}]$, is the trajectory generated by autoregressive gradient descent:
+\begin{align}
+    w_0^{seq} &= \text{initial model weight} \\
+    w_t^{seq} &= w_0^{seq} - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(w_\tau^{seq}, \dots, w_0^{seq}) \quad \text{for } t \ge 1
+\end{align}
+It is straightforward to see that $W^{seq}$ is a fixed point of $\Hcal$, since $\Hcal(W^{seq}) = W^{seq}$.
+\end{definition}
+
+
+
+\subsection{Objectives}
+We aim to prove two key properties of this iterative process:
+\begin{enumerate}
+    \item \textbf{Convergence:} The fixed-point iteration $W^k = \Hcal(W^{k-1})$ converges to the unique fixed point $W^{seq}$, which corresponds to the trajectory of autoregressive gradient descent.
+    \item \textbf{Finite Convergence Steps:} In the worst-case scenario, the number of iterations $K$ required for convergence ($W^K = W^{seq}$) is at most $T$.
+\end{enumerate}
+
+
+
+\subsection{Proof of Convergence (Objective 1)}
+We will prove by mathematical induction on the time step $t$ that for each $t \in \{0, \dots, T-1\}$, the sequence of iterates $\{\hat{w}_t^k\}_{k=1}^\infty$ converges to $w_t^{seq}$.
+
+\begin{proof}
+Let $W^k = [\hat{w}_0^k, \dots, \hat{w}_{T-1}^k]$ be the iterates at step $k$.
+From the definition of $\Hcal$, we have:
+\begin{align}
+    \hat{w}_0^k &= w_0^{seq} \\
+    \hat{w}_t^k &= \hat{w}_0^{k-1} - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(\hat{w}_\tau^{k-1}, \dots, \hat{w}_0^{k-1}) \quad \text{for } t \ge 1
+\end{align}
+
+\textbf{Base Case ($t=0$):}
+From the definition of $\Hcal$, $\hat{w}_0^k = w_0^{seq}$ for all $k \ge 1$. Thus,
+$$
+\lim_{k \to \infty} \norm{\hat{w}_0^k - w_0^{seq}} = 0
+$$
+The base case holds trivially.
+
+\textbf{Inductive Hypothesis:}
+Assume for a given $t \ge 0$ that for all $\tau \in \{0, \dots, t\}$, we have:
+$$
+\lim_{k \to \infty} \norm{\hat{w}_\tau^k - w_\tau^{seq}} = 0
+$$
+
+\textbf{Inductive Step:}
+We must show that the statement holds for $t+1$, i.e., $\lim_{k \to \infty} \norm{\hat{w}_{t+1}^k - w_{t+1}^{seq}} = 0$.
+
+The iterate $\hat{w}_{t+1}^k$ and the target $w_{t+1}^{seq}$ are given by:
+\begin{align*}
+    \hat{w}_{t+1}^k &= \hat{w}_0^{k-1} - \sum_{\tau=0}^{t} \eta_\tau g_\tau(W_\tau^{k-1}) \\
+    w_{t+1}^{seq} &= w_0^{seq} - \sum_{\tau=0}^{t} \eta_\tau g_\tau(W_\tau^{seq})
+\end{align*}
+Since $\hat{w}_0^{k-1} = w_0^{seq}$ for $k-1 \ge 1$, the difference is:
+$$
+\hat{w}_{t+1}^k - w_{t+1}^{seq} = \sum_{\tau=0}^{t} \eta_\tau \left( g_\tau(W_\tau^{seq}) - g_\tau(W_\tau^{k-1}) \right)
+$$
+Taking the norm and applying the triangle inequality:
+$$
+\norm{\hat{w}_{t+1}^k - w_{t+1}^{seq}} \le \sum_{\tau=0}^{t} \eta_\tau \norm{g_\tau(W_\tau^{k-1}) - g_\tau(W_\tau^{seq})}
+$$
+From Appendix~\ref{app:Upper_bound_of_g_t_SGD}, ~\ref{app:Upper_bound_of_g_t_adam}, and~\ref{app:Upper_bound_of_g_t_AdamW}.  we can know that the gradient function $g_\tau$ for various optimizers is upper bounded with respect to its arguments.  Denote uniformly by these boundaries $C$, we have:
+$$
+\norm{\hat{w}_{t+1}^k - w_{t+1}^{seq}} \le \sum_{\tau=0}^{t} \eta_\tau C \norm{W_\tau^{k-1} - W_\tau^{seq}}
+$$
+By the inductive hypothesis, for each $\tau \in \{0, \dots, t\}$, every component of $W_\tau^{k-1}$ converges to the corresponding component of $W_\tau^{seq}$ as $k \to \infty$. This implies that:
+$$
+\lim_{k \to \infty} \norm{W_\tau^{k-1} - W_\tau^{seq}} = \lim_{k \to \infty} \left( \sum_{j=0}^{\tau} \norm{\hat{w}_j^{k-1} - w_j^{seq}}^2 \right)^{1/2} = 0
+$$
+Since the sum on the right-hand side is a finite sum of terms each converging to zero, the entire expression converges to zero:
+$$
+\lim_{k \to \infty} \norm{\hat{w}_{t+1}^k - w_{t+1}^{seq}} \le \sum_{\tau=0}^{t} \eta_\tau C \cdot 0 = 0
+$$
+As the norm is non-negative, we conclude $\lim_{k \to \infty} \norm{\hat{w}_{t+1}^k - w_{t+1}^{seq}} = 0$. This completes the inductive step.
+
+By the principle of mathematical induction, $\hat{w}_t^k \to w_t^{seq}$ for all $t \in \{0, \dots, T-1\}$. Therefore, the iteration $W^k = \Hcal(W^{k-1})$ converges to $W^{seq}$.
+\end{proof}
+
+
+\subsection{Proof of Convergence Steps (Objective 2)}
+
+We now prove a stronger result: in worst-case scenario, the fixed-point iteration converges to the exact fixed point $W^{seq}$ in at most $T$ iterations.
+
+\textbf{Worst-Case Scenario Analysis.}
+The structure of the mapping $\Hcal$ imposes a causal dependency: the calculation of $\hat{w}_t^k$ depends only on the components $\hat{w}_0^{k-1}, \dots, \hat{w}_{t-1}^{k-1}$ from the previous iteration. The initial models for the fixed-point iteration and the autoregressive gradient descent are identical at $t=0$ ($\hat{w}_0^k = w_0^{seq}$). Consequently, convergence cannot occur "out of order". The component $\hat{w}_1$ can only converge after $\hat{w}_0$ has, $\hat{w}_2$ can only converge after $\hat{w}_0$ and $\hat{w}_1$ have, and so on.
+
+The worst-case scenario occurs when each iteration $k$ can only ensure the convergence of one component, leading to the convergence proceeding sequentially, one component at a time. This sequential "locking-in" of the correct values is equivalent in its step-by-step nature to the autoregressive gradient descent. We will formalize this intuition below.
+
+\begin{proof}
+We will prove by induction on the component index $t$ the statement $P(t)$:
+$$
+P(t): \quad \hat{w}_t^k = w_t^{seq} \quad \text{for all } k \ge t+1.
+$$
+
+\textbf{Base Case ($t=0$):}
+We must prove $P(0)$: $\hat{w}_0^k = w_0^{seq}$ for all $k \ge 1$. By the definition of $\Hcal$ in Eq.~\eqref{eq:mathcal_F}, $\hat{w}_0^k$ is set to $w_0^{seq}$ for every iteration $k \ge 1$. The base case holds.
+
+\textbf{Inductive Hypothesis:}
+Assume for some $t \ge 1$ that $P(\tau)$ holds for all $\tau \in \{0, 1, \dots, t-1\}$. This means for each such $\tau$:
+$$
+\hat{w}_\tau^k = w_\tau^{seq} \quad \text{for all } k \ge \tau+1.
+$$
+
+\textbf{Inductive Step:}
+We must prove that $P(t)$ holds: $\hat{w}_t^k = w_t^{seq}$ for all $k \ge t+1$.
+
+Consider an arbitrary iteration $k$ such that $k \ge t+1$. This implies $k-1 \ge t$. The iterate $\hat{w}_t^k$ is defined as:
+$$
+\hat{w}_t^k = \hat{w}_0^{k-1} - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(\hat{w}_\tau^{k-1}, \dots, \hat{w}_0^{k-1}).
+$$
+The arguments to the functions $g_\tau$ are the components of $W^{k-1}$. Let's examine an arbitrary component $\hat{w}_\tau^{k-1}$ in this expression, where $\tau \in \{0, 1, \dots, t-1\}$.
+From our condition on $k$, we have $k-1 \ge t > \tau$, which implies $k-1 \ge \tau+1$.
+
+According to our inductive hypothesis, since $k-1 \ge \tau+1$, each of these components has already converged to its final value:
+$$
+\hat{w}_\tau^{k-1} = w_\tau^{seq} \quad \text{for each } \tau \in \{0, 1, \dots, t-1\}.
+$$
+This demonstrates that for any iteration $k \ge t+1$, all the inputs required to compute $\hat{w}_t^k$ have already stabilized to their fixed-point values at the preceding step, $k-1$.
+
+Substituting these converged values back into the expression for $\hat{w}_t^k$:
+$$
+\hat{w}_t^k = w_0^{seq} - \sum_{\tau=0}^{t-1} \eta_\tau g_\tau(w_\tau^{seq}, \dots, w_0^{seq}).
+$$
+The right-hand side of this equation is precisely the definition of the target sequential weight $w_t^{seq}$. Therefore,
+$$
+\hat{w}_t^k = w_t^{seq}.
+$$
+Since our choice of $k \ge t+1$ was arbitrary, this equality holds for all such $k$. This proves $P(t)$ and completes the inductive step.
+
+\textbf{Conclusion on Iteration Count.}
+By induction, we have shown that $\hat{w}_t^k = w_t^{seq}$ for all $k \ge t+1$. For the entire vector $W^k = [\hat{w}_0^k, \dots, \hat{w}_{T-1}^k]$ to converge, every component must have converged. The last component to converge is $\hat{w}_{T-1}^k$. Applying our result for $t = T-1$:
+$$
+\hat{w}_{T-1}^k = w_{T-1}^{seq} \quad \text{for all } k \ge (T-1)+1 = T.
+$$
+At iteration $k=T$, we have $T \ge t+1$ for all $t \in \{0, \dots, T-1\}$. This implies that every component $\hat{w}_t^T$ has converged to $w_t^{seq}$. Thus, the entire vector has converged:
+$$
+W^T = W^{seq}.
+$$
+Therefore, the fixed-point iteration requires exactly $K=T$ iterations to converge to the fixed point in the worst case, and it remains there for all subsequent iterations. The number of iterations $K$ required does not exceed the number of autoregressive steps $T$.
+\end{proof}
+
+
+
+
+
+\subsection{Upper Bound for the Difference of $g_{t}$ in SGD}
+\label{app:Upper_bound_of_g_t_SGD}
+For SGD, the update function $g_t$ takes the form: 
+\begin{equation} g_{t}(w_{t}; \zeta_{t}) = \nabla_{w_{t}} \mathcal{L}(w_{t}, \zeta_{t}) 
+\end{equation} We aim to find an upper bound for $\|g_{t}(w_{t}) - g_{t}(x_{t})\|$. By directly applying Assumption~\ref{assp:Lpsz} (L-Lipschitz continuity), we get: \begin{equation} \|g_{t}(w_{t}) - g_{t}(x_{t})\| = \|\nabla_{w_{t}} \mathcal{L}(w_{t}, \zeta_{t}) - \nabla_{x_{t}} \mathcal{L}(x_{t}, \zeta_{t})\| \le L \|w_{t} - x_{t}\| 
+\end{equation} Therefore, for SGD, the Lipschitz constant of the update function $g_t$ is $L$. 
+
+
+
+
+\subsection{Upper Bound for the Difference of $g_{t}$ in Adam}
+\label{app:Upper_bound_of_g_t_adam}
+\textbf{Notation.} We denote the collection of weights up to time $t$ as $W_\tau = [w_0, \dots, w_t]$ and  note $W_{T-1} = [w_0, \dots, w_{T-1}]$ as $W$. Analogously, $X_t = [x_0, \dots, x_t]$ and $X = [x_0, \dots, x_{T-1}]$.
+
+Our objective is to derive an upper bound for the difference $\|g_{t-1}(W_{t-1}) - g_{t-1}(X_{t-1})\|_F$ for any $W_{t-1}$ and $X_{t-1}$.
+
+The function $g_{t-1}$ is defined as:
+\begin{equation}
+g_{t-1}(W_{t-1}) = \frac{A(W_{t-1})}{\sqrt{B(W_{t-1})+ \epsilon} }
+\end{equation}
+where the division and square root are element-wise operations. The numerator $A(W_{t-1})$ and denominator component $B(W_{t-1})$ are defined as the bias-corrected first and second moment estimates:
+\begin{equation}
+\label{eq:def_A_rev}
+A(W_{t-1}) = \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)
+\end{equation}
+\begin{equation}
+\label{eq:def_B_rev}
+B(W_{t-1}) = \frac{1 - \beta_2}{1 - \beta_2^t} \sum_{\tau=0}^{t-1} \beta_2^{t-1-\tau} \left(\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau)\right)^2
+\end{equation}
+
+This proof relies on two standard assumptions:
+
+\textbf{1. $L$-Lipschitz Gradient}: The gradient of the loss function is $L$-Lipschitz continuous, i.e., $\|\nabla \mathcal{L}(w) - \nabla \mathcal{L}(x)\|_F \le L \|w - x\|_F$.
+
+\textbf{2.  Bounded Gradient Norm}: The Frobenius norm of the stochastic gradients is uniformly bounded by a constant $M$, i.e., $\|\nabla \mathcal{L}(w, \zeta)\|_F \le M$.
+
+For clarity, we will temporarily omit the subscript $t-1$ from $W$ and $X$ within the derivation and re-introduce it in the final result. We begin by decomposing the difference $g(W) - g(X)$ by adding and subtracting an intermediate term:
+\begin{equation}
+g(W) - g(X) = \left( \frac{A(W) - A(X)}{\sqrt{B(W)+ \epsilon}} \right) + \left( \frac{A(X)}{\sqrt{B(W)+ \epsilon}} - \frac{A(X)}{\sqrt{B(X)+ \epsilon}} \right)
+\end{equation}
+This can be expressed using the element-wise Hadamard product ($\odot$) as:
+\begin{equation}
+g(W) - g(X) = (A(W) - A(X)) \odot \frac{1}{\sqrt{B(W)+\epsilon}} + A(X) \odot \left(\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right)
+\end{equation}
+By applying the triangle inequality to the Frobenius norm, we get:
+\begin{equation}
+\|g(W) - g(X)\|_F \le \left\| (A(W) - A(X)) \odot \frac{1}{\sqrt{B(W)+\epsilon}} \right\|_F + \left\| A(X) \odot \left(\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right) \right\|_F
+\end{equation}
+Next, we use the property of the Hadamard product, $\|U \odot V\|_F \le \|U\|_{\max} \|V\|_F$, where $\|U\|_{\max}$ is the maximum absolute value of any element in $U$. This yields our main inequality:
+\begin{equation}
+\label{eq:main_bound_rev}
+\|g(W) - g(X)\|_F \le \left\| \frac{1}{\sqrt{B(W)+\epsilon}} \right\|_{\max} \|A(W) - A(X)\|_F + \|A(X)\|_{\max} \left\|\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right\|_F
+\end{equation}
+We now bound the four terms in Eq.~\eqref{eq:main_bound_rev}.
+
+\textbf{1. Bound for $\|A(W_{t-1}) - A(X_{t-1})\|_F$}
+
+From the definition in Eq.~\eqref{eq:def_A_rev}, we have:
+\begin{equation}
+A(W) - A(X) = \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \left(\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau) - \nabla_{x_\tau} \mathcal{L}(x_\tau, \zeta_\tau)\right)
+\end{equation}
+Taking the Frobenius norm and applying the triangle inequality, then using the $L$-Lipschitz assumption and the fact that $\|w_\tau - x_\tau\|_F \le \|W - X\|_F$:
+\begin{equation}
+\begin{aligned}
+\|A(W) - A(X)\|_F &\le \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \|\nabla_{w_\tau} \mathcal{L}(w_\tau, \zeta_\tau) - \nabla_{x_\tau} \mathcal{L}(x_\tau, \zeta_\tau)\|_F \\
+&\le \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} L \|w_\tau - x_\tau\|_F \\
+&\le L \|W-X\|_F \left(\frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau}\right)
+\end{aligned}
+\end{equation}
+The sum of the bias-correction weights is equal to one. Thus, we have:
+\begin{equation}
+\label{eq:bound_A_diff_rev}
+\|A(W_{t-1}) - A(X_{t-1})\|_F \le L \|W_{t-1} - X_{t-1}\|_F
+\end{equation}
+
+\textbf{2. Bound for $\left\| \frac{1}{\sqrt{B(W)+\epsilon}} \right\|_{\max}$}
+
+Since each entry of $B(W)$ is a weighted average of squared gradients, $B_{ij}(W) \ge 0$ for all $i,j$. It follows that $\sqrt{B_{ij}(W) + \epsilon} \ge \sqrt{\epsilon}$. Taking the reciprocal gives the bound:
+\begin{equation}
+\label{eq:bound_B_inv_max_rev}
+\left\| \frac{1}{\sqrt{B(W)+\epsilon}} \right\|_{\max} = \max_{i,j} \frac{1}{\sqrt{B_{ij}(W) + \epsilon}} \le \frac{1}{\sqrt{\epsilon}}
+\end{equation}
+
+\textbf{3. Bound for $\|A(X)\|_{\max}$}
+
+Given the bounded gradient assumption $\|\nabla \mathcal{L}\|_F \le M$, and since $\|\cdot\|_{\max} \le \|\cdot\|_F$, we have $\|\nabla \mathcal{L}\|_{\max} \le M$.
+\begin{equation}
+\label{eq:bound_A_max_rev}
+\begin{aligned}
+\|A(X)\|_{\max} &\le \left\| \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \nabla_{x_\tau} \mathcal{L}(x_\tau, \zeta_\tau) \right\|_{\max} \\
+&\le \frac{1 - \beta_1}{1 - \beta_1^t} \sum_{\tau=0}^{t-1} \beta_1^{t-1-\tau} \|\nabla_{x_\tau}\mathcal{L}\|_{\max} \le M
+\end{aligned}
+\end{equation}
+
+\textbf{4. Bound for $\left\|\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right\|_F$}
+
+Let $u = B(W)+\epsilon$ and $v = B(X)+\epsilon$. We have:
+\begin{equation}
+\left\|\frac{1}{\sqrt{u}} - \frac{1}{\sqrt{v}}\right\|_F = \left\| \frac{\sqrt{v} - \sqrt{u}}{\sqrt{u}\sqrt{v}} \right\|_F \le \left\|\frac{1}{\sqrt{uv}}\right\|_{\max} \|\sqrt{v} - \sqrt{u}\|_F \le \frac{1}{\epsilon} \|\sqrt{v} - \sqrt{u}\|_F
+\end{equation}
+The function $f(x) = \sqrt{x}$ is $\frac{1}{2\sqrt{\epsilon}}$-Lipschitz on $[\epsilon, \infty)$, which implies $\|\sqrt{v} - \sqrt{u}\|_F \le \frac{1}{2\sqrt{\epsilon}}\|v - u\|_F$ (see Lemma~\ref{lemma:MVT}). Therefore:
+\begin{equation}
+\label{eq:pre_bound_B_diff_rev}
+\left\|\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right\|_F \le \frac{1}{2\epsilon^{3/2}}\|B(W) - B(X)\|_F
+\end{equation}
+To complete this bound, we must bound $\|B(W) - B(X)\|_F$. From Eq.~\eqref{eq:def_B_rev}, we analyze the difference of squares term $(\nabla_{w_\tau}\mathcal{L})^2 - (\nabla_{x_\tau}\mathcal{L})^2 = (\nabla_{w_\tau}\mathcal{L} - \nabla_{x_\tau}\mathcal{L}) \odot (\nabla_{w_\tau}\mathcal{L} + \nabla_{x_\tau}\mathcal{L})$. Taking the norm:
+\begin{equation}
+\begin{aligned}
+\|(\nabla_{w_\tau}\mathcal{L})^2 - (\nabla_{x_\tau}\mathcal{L})^2\|_F &\le \|\nabla_{w_\tau}\mathcal{L} - \nabla_{x_\tau}\mathcal{L}\|_F \cdot \|\nabla_{w_\tau}\mathcal{L} + \nabla_{x_\tau}\mathcal{L}\|_{\max} \\
+&\le (L\|w_\tau-x_\tau\|_F) \cdot (\|\nabla_{w_\tau}\mathcal{L}\|_{\max} + \|\nabla_{x_\tau}\mathcal{L}\|_{\max}) \\
+&\le (L\|w_\tau-x_\tau\|_F) \cdot (M + M) = 2LM\|w_\tau-x_\tau\|_F
+\end{aligned}
+\end{equation}
+Summing over $\tau$ with the bias-corrected weights gives $\|B(W) - B(X)\|_F \le 2LM \|W - X\|_F$. Substituting this into Eq.~\eqref{eq:pre_bound_B_diff_rev}:
+\begin{equation}
+\label{eq:bound_diff_term_rev}
+\left\|\frac{1}{\sqrt{B(W)+\epsilon}} - \frac{1}{\sqrt{B(X)+\epsilon}}\right\|_F \le \frac{2LM}{2\epsilon^{3/2}}\|W - X\|_F = \frac{LM}{\epsilon^{3/2}}\|W - X\|_F
+\end{equation}
+
+\textbf{Final Result}. We now substitute the bounds from Eq.~\eqref{eq:bound_A_diff_rev}, Eq.~\eqref{eq:bound_B_inv_max_rev}, Eq.~\eqref{eq:bound_A_max_rev}, and Eq.~\eqref{eq:bound_diff_term_rev} into our main inequality Eq.~\eqref{eq:main_bound_rev}.
+\begin{equation}
+\begin{aligned}
+\|g_{t-1}(W) - g_{t-1}(X)\|_F &\le \left( \frac{1}{\sqrt{\epsilon}} \right) \cdot \left(L \|W - X\|_F\right) + (M) \cdot \left( \frac{LM}{\epsilon^{3/2}} \|W - X\|_F \right) \\
+&= \left( \frac{L}{\sqrt{\epsilon}} + \frac{M^2 L}{\epsilon^{3/2}} \right) \|W_{t-1} - X_{t-1}\|_F
+\end{aligned}
+\end{equation}
+This final result provides an upper bound for the difference in the Adam update step that depends only on the problem constants $L, M, \epsilon$.
+
+
+\subsection{Upper Bound for the Difference of $g_{t}$ in AdamW}
+\label{app:Upper_bound_of_g_t_AdamW}
+
+The AdamW update function $g_t$ can be decomposed into the Adam update term and a decoupled weight decay term:
+\begin{equation}
+    g_{t}(W_{t}) = g_{t}^{\text{Adam}}(W_{t}) + \lambda_{t} w_{t}
+\end{equation}
+where $\lambda_t$ is the weight decay coefficient. We analyze the norm of its difference using the triangle inequality:
+\begin{align}
+    \|g_{t}(W) - g_{t}(X)\|_F &= \|(g_{t}^{\text{Adam}}(W) - g_{t}^{\text{Adam}}(X)) + \lambda_{t}(w_{t} - x_{t})\|_F \\
+    &\le \|g_{t}^{\text{Adam}}(W) - g_{t}^{\text{Adam}}(X)\|_F + \lambda_{t}\|w_{t} - x_{t}\|_F
+\end{align}
+We now substitute the final bound derived for the Adam component in Appendix~\ref{app:Upper_bound_of_g_t_adam}:
+\begin{equation}
+    \|g_{t}^{\text{Adam}}(W) - g_{t}^{\text{Adam}}(X)\|_F \le \left( \frac{L}{\sqrt{\epsilon}} + \frac{M^2 L}{\epsilon^{3/2}} \right) \|W_{t} - X_{t}\|_F
+\end{equation}
+Assuming an upper bound for the weight decay coefficient, $\lambda_t \le \lambda_{\max}$, and noting that $\|w_t - x_t\|_F \le \|W_t - X_t\|_F$, we have:
+\begin{align}
+    \|g_{t}(W) - g_{t}(X)\|_F &\le \left( \frac{L}{\sqrt{\epsilon}} + \frac{M^2 L}{\epsilon^{3/2}} \right) \|W_{t} - X_{t}\|_F + \lambda_{\max} \|W_{t} - X_{t}\|_F \\
+    &= \left( \lambda_{\max} + \frac{L}{\sqrt{\epsilon}} + \frac{M^2 L}{\epsilon^{3/2}} \right) \|W_{t} - X_{t}\|_F
+\end{align}
+This provides a rigorous upper bound for the difference in the AdamW update step. 
+
+
+
+
+
+
+
+\end{document}
