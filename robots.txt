@@ -1,0 +1,3 @@
+User-agent: *
+
+Sitemap: https://incas.example.org/sitemap.xml

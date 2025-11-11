@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>在此列出主题标签 | INCaS Research Showcase</title><link>https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E5%88%97%E5%87%BA%E4%B8%BB%E9%A2%98%E6%A0%87%E7%AD%BE/</link><atom:link href="https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E5%88%97%E5%87%BA%E4%B8%BB%E9%A2%98%E6%A0%87%E7%AD%BE/index.xml" rel="self" type="application/rss+xml"/><description>在此列出主题标签</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>zh-CN</language><lastBuildDate>Mon, 01 Jan 2024 00:00:00 +0000</lastBuildDate><image><url>https://incas.example.org/media/icon_hu_982c5d63a71b2961.png</url><title>在此列出主题标签</title><link>https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E5%88%97%E5%87%BA%E4%B8%BB%E9%A2%98%E6%A0%87%E7%AD%BE/</link></image><item><title>示例：在此输入期刊论文标题</title><link>https://incas.example.org/publications/multilingual-qa/</link><pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate><guid>https://incas.example.org/publications/multilingual-qa/</guid><description>
+&lt;blockquote class="border-l-4 border-neutral-300 dark:border-neutral-600 pl-4 italic text-neutral-600 dark:text-neutral-400 my-6"&gt;
+&lt;p&gt;&lt;strong&gt;填写建议&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;用 Markdown 编写“Abstract / Methodology / Results / Resources”等小节&lt;/li&gt;
+&lt;li&gt;可以嵌入图片、表格或代码块&lt;/li&gt;
+&lt;li&gt;若需要隐藏某段内容，可使用 &lt;code&gt;&amp;lt;!-- --&amp;gt;&lt;/code&gt; 注释&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;h3 id="示例结构"&gt;示例结构&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Abstract
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;简要总结论文。
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Methodology
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;详述模型架构、训练流程或算法公式。
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Results
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- 指标对比
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- 消融实验
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- 可视化分析
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item></channel></rss>

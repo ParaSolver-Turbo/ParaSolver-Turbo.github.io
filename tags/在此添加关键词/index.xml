@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>在此添加关键词 | INCaS Research Showcase</title><link>https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E6%B7%BB%E5%8A%A0%E5%85%B3%E9%94%AE%E8%AF%8D/</link><atom:link href="https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E6%B7%BB%E5%8A%A0%E5%85%B3%E9%94%AE%E8%AF%8D/index.xml" rel="self" type="application/rss+xml"/><description>在此添加关键词</description><generator>Hugo Blox Builder (https://hugoblox.com)</generator><language>zh-CN</language><lastBuildDate>Sat, 01 Jun 2024 00:00:00 +0000</lastBuildDate><image><url>https://incas.example.org/media/icon_hu_982c5d63a71b2961.png</url><title>在此添加关键词</title><link>https://incas.example.org/tags/%E5%9C%A8%E6%AD%A4%E6%B7%BB%E5%8A%A0%E5%85%B3%E9%94%AE%E8%AF%8D/</link></image><item><title>示例：在此输入预印本/工作论文标题</title><link>https://incas.example.org/publications/turbulence-diffusion/</link><pubDate>Sat, 01 Jun 2024 00:00:00 +0000</pubDate><guid>https://incas.example.org/publications/turbulence-diffusion/</guid><description>
+&lt;blockquote class="border-l-4 border-neutral-300 dark:border-neutral-600 pl-4 italic text-neutral-600 dark:text-neutral-400 my-6"&gt;
+&lt;p&gt;&lt;strong&gt;撰写建议&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;说明这是草稿/进展，列出 TODO 清单&lt;/li&gt;
+&lt;li&gt;提供复现实验所需的配置或数据链接&lt;/li&gt;
+&lt;li&gt;可加“Call for Feedback”小节，邀请合作或同行评审&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Progress
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- [ ] 整理实验
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- [ ] 补充大图
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;## Notes
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;记录关键假设、尚未解决的问题等。
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item></channel></rss>
