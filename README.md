@@ -7,10 +7,3 @@ This repository contains the source code for the official project homepage of ou
 ### ➡️ [Visit the live website here](https://ParaSolver-Turbo.github.io/)
 
 ---
-
-**Authors:**
-Jianrong Lu, Zhiyu Zhu, Hui Liu, Junhui Hou
-
-**Quick Links:**
-* **Paper:** [arXiv](https)
-* **Code:** [GitHub]([https](https://github.com/Jianrong-Lu/ParaSolver-Turbo-Plus))
