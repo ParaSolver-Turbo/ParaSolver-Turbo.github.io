@@ -1,11 +1,9 @@
-# ParaSolver-Turbo++: Project Page
+# ParaLin++: Project Page
 
-> 🚀 **This project has been extended and renamed to ParaLin++ — new project page: [https://paralinplus.github.io/](https://paralinplus.github.io/)**
+This repository hosts the official project homepage of our paper:
 
-This repository contains the source code for the official project homepage of our paper:
+**Back to the Drawing Board: A Critical Evaluation of Few-Step Solvers for Production Diffusion Models** (arXiv preprint; extension of our conference ParaLin)
 
-**ParaSolver-Turbo++: Accelerating Parallel Diffusion Integrator via Intrinsic Partially Linear Structure**
+### ➡️ [Visit the live website here](https://parasolver-turbo.github.io/)
 
-### ➡️ [Visit the live website here](https://ParaSolver-Turbo.github.io/)
-
----
+Mirror: [https://paralinplus.github.io/](https://paralinplus.github.io/)
